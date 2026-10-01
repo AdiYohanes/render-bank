@@ -11,16 +11,18 @@ const status = JSON.parse(execFileSync(process.execPath, [bin, "status", "--outp
 const { API_URL: url, PUBLISHABLE_KEY: publishable, SERVICE_ROLE_KEY: serviceKey } = status;
 assert.ok(url && publishable && serviceKey, "Start local Supabase before running database tests");
 const trusted = createClient(url, serviceKey, { auth: { persistSession: false, autoRefreshToken: false } });
-const tables = ["categories", "models", "tags", "use_cases", "media_assets", "prompts", "prompt_contents", "prompt_variables", "prompt_images", "prompt_models", "prompt_tags", "prompt_use_cases"];
+const tables = ["categories", "models", "tags", "use_cases", "media_assets", "prompts", "prompt_contents", "prompt_variables", "prompt_images", "prompt_models", "prompt_tags", "prompt_use_cases", "packs", "pack_prompts", "prompt_slug_redirects", "pack_slug_redirects"];
 const published = "00000000-0000-4000-8000-000000000601";
 const draft = "00000000-0000-4000-8000-000000000602";
 
 async function verify(role, client) {
   const { data: prompts, error: promptError } = await client.from("prompts").select("id,slug,title,status,access_type,primary_sales_pack_id");
   assert.ifError(promptError);
-  assert.deepEqual(prompts.map(({ id }) => id), [published], `${role}: only published Free metadata`);
-  assert.equal(prompts[0].slug, "demo-studio-product");
-  assert.equal(prompts[0].primary_sales_pack_id, null);
+  assert.deepEqual(prompts.map(({ id }) => id).sort(), [published, "00000000-0000-4000-8000-000000000603", "00000000-0000-4000-8000-000000000604"].sort(), `${role}: published Free and Premium metadata`);
+  const free = prompts.find(({ id }) => id === published);
+  assert.equal(free.slug, "demo-studio-product");
+  assert.equal(free.primary_sales_pack_id, null);
+  assert.equal(prompts.find(({ id }) => id.endsWith("603")).primary_sales_pack_id, "00000000-0000-4000-8000-000000000901");
 
   const { data: contents, error: contentError } = await client.from("prompt_contents").select("prompt_id,prompt_template,generation_notes");
   assert.ifError(contentError);
@@ -41,18 +43,52 @@ async function verify(role, client) {
   })) {
     const { data, error } = await client.from(table).select("*");
     assert.ifError(error);
-    assert.equal(data.length, 1, `${role}: ${table} must exclude draft-only records`);
-    assert.equal(data[0].slug ?? data[0].storage_path, expected);
+    const values = data.map((row) => row.slug ?? row.storage_path);
+    assert.ok(values.includes(expected), `${role}: ${table} includes published metadata`);
+    assert.ok(values.every((value) => !value.includes("draft-only") && !value.includes("archived")), `${role}: ${table} excludes non-public records`);
   }
   for (const table of ["prompt_images", "prompt_models", "prompt_tags", "prompt_use_cases"]) {
     const { data, error } = await client.from(table).select("*");
     assert.ifError(error);
-    assert.equal(data.length, 1, `${role}: ${table} must expose only published relations`);
-    assert.equal(data[0].prompt_id, published);
+    assert.deepEqual(data.map(({ prompt_id }) => prompt_id).sort(),
+      table === "prompt_tags" || table === "prompt_use_cases" ? [published] : [published, "00000000-0000-4000-8000-000000000603", "00000000-0000-4000-8000-000000000604"].sort(),
+      `${role}: ${table} exposes only published relations`);
+  }
+  const { data: packs, error: packError } = await client.from("packs").select("id,slug,price_minor,currency,pack_prompts(sort_order,prompt_id,prompts(id,slug,prompt_contents(prompt_template,generation_notes),prompt_variables(key,label,default_value)))");
+  assert.ifError(packError);
+  assert.equal(packs.length, 1);
+  assert.equal(packs[0].slug, "demo-product-pack");
+  assert.equal(packs[0].price_minor, 59000);
+  assert.equal(packs[0].currency, "IDR");
+  assert.deepEqual(packs[0].pack_prompts.sort((a, b) => a.sort_order - b.sort_order).map(({ prompt_id }) => prompt_id),
+    ["00000000-0000-4000-8000-000000000603", "00000000-0000-4000-8000-000000000604"]);
+  assert.ok(packs[0].pack_prompts.every(({ prompts: prompt }) => prompt.prompt_contents === null && prompt.prompt_variables.length === 0));
+  assert.doesNotMatch(JSON.stringify(packs), /SECRET_PREMIUM/);
+  const { data: hiddenRecipes, error: recipeError } = await client.from("prompt_contents").select("*").in("prompt_id", ["00000000-0000-4000-8000-000000000603", "00000000-0000-4000-8000-000000000604"]);
+  assert.ifError(recipeError);
+  assert.deepEqual(hiddenRecipes, []);
+  const { data: hiddenVariables, error: hiddenVariableError } = await client.from("prompt_variables").select("*").eq("prompt_id", "00000000-0000-4000-8000-000000000603");
+  assert.ifError(hiddenVariableError);
+  assert.deepEqual(hiddenVariables, []);
+  for (const table of ["prompt_slug_redirects", "pack_slug_redirects"]) {
+    const { data, error } = await client.from(table).select("*");
+    assert.ifError(error);
+    assert.equal(data.length, 1, `${role}: only published canonical redirects`);
   }
   const { data: hidden, error: hiddenError } = await client.from("prompts").select("id").eq("id", draft);
   assert.ifError(hiddenError);
   assert.deepEqual(hidden, []);
+  for (const [table, ids] of [
+    ["prompts", ["00000000-0000-4000-8000-000000000605", "00000000-0000-4000-8000-000000000606"]],
+    ["packs", ["00000000-0000-4000-8000-000000000902", "00000000-0000-4000-8000-000000000903"]],
+  ]) {
+    const { data, error } = await client.from(table).select("id").in("id", ids);
+    assert.ifError(error);
+    assert.deepEqual(data, [], `${role}: archived and unlisted ${table} stay hidden`);
+  }
+  const { data: publicPayload, error: payloadError } = await client.from("prompts").select("*,prompt_contents(*),prompt_variables(*),packs!prompts_primary_sales_pack_id_fkey(*)");
+  assert.ifError(payloadError);
+  assert.doesNotMatch(JSON.stringify({ publicPayload, payloadError }), /SECRET_PREMIUM|SECRET_ARCHIVED/);
 
   for (const table of tables) {
     const { error: insert } = await client.from(table).insert({});
@@ -67,7 +103,7 @@ async function verify(role, client) {
   }
 }
 
-test("actual anon and non-Admin Auth policies expose only published Free data and deny writes", async () => {
+test("actual anon and non-Admin Auth policies expose published safe metadata, Free recipes, and no public writes", async () => {
   const visitor = createClient(url, publishable, { auth: { persistSession: false } });
   const email = `rls-${Date.now()}@example.invalid`;
   const password = `RlsTest-${crypto.randomUUID()}!`;
