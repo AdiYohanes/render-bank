@@ -117,6 +117,23 @@ test("matching provider event replay does not change the entitlement or token", 
   );
 });
 
+function assertUnchangedAfterFailure(invocation, before = "") {
+  const rows = sql(`${setup} ${before}
+    do $$begin
+      ${invocation.replace("select purchase_id || '|' || newly_completed from ", "perform * from ")}
+      raise exception 'completion unexpectedly succeeded';
+    exception when others then
+      if sqlerrm = 'completion unexpectedly succeeded' then raise; end if;
+    end$$;
+    select p.payment_status || '|' || a.status || '|' || (p.paid_at is null) || '|' ||
+      (select count(*) from public.payment_events) || '|' ||
+      (select count(*) from public.purchase_entitlements) || '|' ||
+      (select count(*) from public.access_tokens)
+    from public.purchases p join public.payment_attempts a on a.purchase_id = p.id
+    where p.id in (select id from purchase_fixture);`);
+  assert.match(rows, /\nPROCESSING\|CREATED\|true\|0\|0\|0\n/);
+}
+
 test("mismatched verified facts and invalid state cannot complete a purchase", () => {
   for (const facts of [
     { provider: "other" },
@@ -125,11 +142,13 @@ test("mismatched verified facts and invalid state cannot complete a purchase", (
     { amount: 59001 },
     { currency: "USD" },
     { status: "FAILED" },
-  ])
+  ]) {
     rejects(
       `${setup} ${completeWith(facts)}`,
       /Invalid verified payment facts|Payment attempt not found|Verified payment does not match purchase/,
     );
+    assertUnchangedAfterFailure(completeWith(facts));
+  }
   for (const state of ["FAILED", "CANCELLED", "EXPIRED", "SUCCEEDED"]) {
     rejects(
       `${setup} update public.payment_attempts set status = '${state}' where id in (select attempt_id from purchase_fixture); ${complete()}`,
