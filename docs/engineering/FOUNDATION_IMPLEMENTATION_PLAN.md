@@ -35,7 +35,7 @@ The GitHub dependencies are **#3 after #2; #4 after #3; #5 and #6 after #4; #7 a
 - Specify `complete_paid_purchase` inputs, output, grants, verified status, allowed transitions, event deduplication, snapshot lock, and rollback behavior in the schema document; point architecture to it.
 - Align this plan to existing issues #2–#8 and assign each parent story once (table below).
 
-**Acceptance:** no unresolved architecture/schema contradiction for these boundaries; documentation links resolve; all 44 parent stories have one owner. Before approving the contract, reconcile #5's “authenticated-Admin-write policies” wording with the proposed trusted-server-only public-bucket upload: direct Admin JWT writes bypass byte validation. **Verify:** cross-reference the affected documents and mechanically validate story coverage; `git diff --check`.
+**Acceptance:** no unresolved architecture/schema contradiction for these boundaries; documentation links resolve; all 44 parent stories have one owner. For #5, “authenticated-Admin-write policies” means active Admin authorization for approved content rows; object and asset writes are trusted-server-only after image-byte validation. Direct Admin JWT Storage writes bypass validation and remain denied. **Verify:** cross-reference the affected documents and mechanically validate story coverage; `git diff --check`.
 
 ## #2 — Replace starter with a verifiable RenderBank shell
 
@@ -73,7 +73,7 @@ The GitHub dependencies are **#3 after #2; #4 after #3; #5 and #6 after #4; #7 a
 
 **Files:** Auth config, policy/Storage migrations, real-role tests, provisioning docs.
 
-**Done when:** active Admin mutations through the validated server path succeed, direct browser-role object writes and inactive/unprofiled Auth mutations fail, and public artwork reads cannot expose protected content. **Verify:** local reset and real-role DB/Storage allow/deny tests.
+**Done when:** active Admin content mutations through RLS and server-validated artwork uploads succeed, direct browser-role object writes and inactive/unprofiled Auth mutations fail, and public artwork reads cannot expose protected content. **Verify:** local reset and real-role DB/Storage allow/deny tests.
 
 ## #6 — Create accountless Buyer persistence boundary
 

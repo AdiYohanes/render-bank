@@ -9,6 +9,33 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
+      admin_profiles: {
+        Row: {
+          created_at: string;
+          display_name: string | null;
+          is_active: boolean;
+          role: Database["public"]["Enums"]["admin_role"];
+          updated_at: string;
+          user_id: string;
+        };
+        Insert: {
+          created_at?: string;
+          display_name?: string | null;
+          is_active?: boolean;
+          role?: Database["public"]["Enums"]["admin_role"];
+          updated_at?: string;
+          user_id: string;
+        };
+        Update: {
+          created_at?: string;
+          display_name?: string | null;
+          is_active?: boolean;
+          role?: Database["public"]["Enums"]["admin_role"];
+          updated_at?: string;
+          user_id?: string;
+        };
+        Relationships: [];
+      };
       categories: {
         Row: {
           created_at: string;
@@ -624,6 +651,7 @@ export type Database = {
       [_ in never]: never;
     };
     Enums: {
+      admin_role: "ADMIN";
       content_status: "ACTIVE" | "ARCHIVED";
       orientation: "PORTRAIT" | "LANDSCAPE" | "SQUARE";
       pack_status: "DRAFT" | "PUBLISHED" | "UNLISTED" | "ARCHIVED";
@@ -757,6 +785,7 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
+      admin_role: ["ADMIN"],
       content_status: ["ACTIVE", "ARCHIVED"],
       orientation: ["PORTRAIT", "LANDSCAPE", "SQUARE"],
       pack_status: ["DRAFT", "PUBLISHED", "UNLISTED", "ARCHIVED"],
