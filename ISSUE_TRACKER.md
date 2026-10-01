@@ -27,7 +27,7 @@ Urutan dependensi: #2 → #3 → #4 → (#5 dan #6 paralel) → #7 (setelah #6) 
 - [ ] [#4 Protect Premium Prompts behind Prompt Pack metadata](https://github.com/AdiYohanes/render-bank/issues/4)
 - [ ] [#5 Authorize Admin content and preview-artwork operations](https://github.com/AdiYohanes/render-bank/issues/5)
 - [ ] [#6 Create the accountless Buyer persistence boundary](https://github.com/AdiYohanes/render-bank/issues/6)
-- [ ] [#7 Complete paid purchases atomically and idempotently](https://github.com/AdiYohanes/render-bank/issues/7)
+- [ ] [#7 Complete paid purchases atomically and idempotently](https://github.com/AdiYohanes/render-bank/issues/7) — diimplementasikan lokal pada a519e81 dan 18a9af8; belum pushed, merged, atau closed; 24 tes database dan 12 tes aplikasi lulus.
 - [ ] [#8 Seal the clean-checkout foundation delivery gate](https://github.com/AdiYohanes/render-bank/issues/8)
 
 ## Sudah selesai
