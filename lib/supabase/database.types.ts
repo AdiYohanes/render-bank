@@ -988,6 +988,23 @@ export type Database = {
       [_ in never]: never;
     };
     Functions: {
+      complete_paid_purchase: {
+        Args: {
+          p_amount_minor: number;
+          p_currency: string;
+          p_event_type: string;
+          p_expected_pack_id: string;
+          p_provider: string;
+          p_provider_attempt_id: string;
+          p_provider_event_id: string;
+          p_token_hash: string;
+          p_verified_status: string;
+        };
+        Returns: {
+          newly_completed: boolean;
+          purchase_id: string;
+        }[];
+      };
       create_processing_purchase: {
         Args: {
           attempt_key: string;
