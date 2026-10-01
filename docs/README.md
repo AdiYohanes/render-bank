@@ -40,7 +40,8 @@ product intent → route/flow → screen behavior → visual specification → a
 | Document | Owns | Status |
 |---|---|---|
 | [`engineering/TECHNICAL_ARCHITECTURE.md`](engineering/TECHNICAL_ARCHITECTURE.md) | System boundaries, runtime decisions, security, integrations, testing, and deployment | Approved MVP Baseline |
-| [`engineering/DATABASE_SCHEMA_DRAFT.md`](engineering/DATABASE_SCHEMA_DRAFT.md) | Persistence model, constraints, RLS, transactions, indexes, and data lifecycle | Draft for Review |
+| [`engineering/DATABASE_SCHEMA.md`](engineering/DATABASE_SCHEMA.md) | Persistence model, constraints, RLS, transactions, indexes, and data lifecycle | Proposed MVP Baseline — Slice 0 review pending |
+| [`engineering/FOUNDATION_IMPLEMENTATION_PLAN.md`](engineering/FOUNDATION_IMPLEMENTATION_PLAN.md) | Issue #1 foundation slices, dependencies, acceptance, and verification | Implementation plan |
 
 ## Task routing
 
@@ -53,6 +54,6 @@ product intent → route/flow → screen behavior → visual specification → a
 | Visual tokens or shared components | [`design/DESIGN.md`](design/DESIGN.md) | High-fidelity composition and matching screen contract |
 | Concrete page or component | Relevant section of [`design/HIGH_FIDELITY_UI.md`](design/HIGH_FIDELITY_UI.md) | Matching screen, design-system, and route sections |
 | Runtime, auth, payment, storage, or deployment | [`engineering/TECHNICAL_ARCHITECTURE.md`](engineering/TECHNICAL_ARCHITECTURE.md) | Database rules and relevant flow semantics |
-| Schema, RLS, migrations, or data lifecycle | [`engineering/DATABASE_SCHEMA_DRAFT.md`](engineering/DATABASE_SCHEMA_DRAFT.md) | Architecture trust boundaries and relevant flows |
+| Schema, RLS, migrations, or data lifecycle | [`engineering/DATABASE_SCHEMA.md`](engineering/DATABASE_SCHEMA.md) | Architecture trust boundaries and relevant flows |
 
 Repository-specific agent workflows live in [`agents/`](agents/). They guide how agents work; they do not override the canonical product specifications above. Root [`CLAUDE.md`](../CLAUDE.md) defines document authority and conflict handling.

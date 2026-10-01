@@ -1,9 +1,9 @@
-# RenderBank Database Schema — Draft Design
+# RenderBank Database Schema
 
 **Document:** Database Schema  
 **Product:** RenderBank  
-**Version:** 0.2  
-**Status:** Draft for Review  
+**Version:** 0.3
+**Status:** Proposed MVP Baseline — Slice 0 review pending
 **Target Database:** Supabase PostgreSQL  
 **Architecture Style:** Server-authoritative modular monolith  
 **Depends On:** `docs/product/PRD.md`, `docs/product/SITEMAP.md`, `docs/experience/USER_FLOWS.md`, `docs/experience/SCREEN_REQUIREMENTS.md`, `docs/design/DESIGN.md`, `docs/design/HIGH_FIDELITY_UI.md`, `docs/engineering/TECHNICAL_ARCHITECTURE.md`
@@ -23,7 +23,7 @@ Dokumen ini merancang database schema RenderBank MVP dengan fokus:
 7. compatibility dengan Supabase tanpa menjadikan Supabase client sebagai business-logic authority;
 8. struktur yang cukup fleksibel untuk future accounts tanpa menambah scope MVP sekarang.
 
-Schema ini adalah rancangan database, belum merupakan migration SQL final.
+Dokumen ini menetapkan kontrak persistensi MVP. SQL migration yang di-version-control menjadi implementasi final dan source of truth setelah dibuat; perubahan kontrak harus memperbarui dokumen ini bersama migration.
 
 ---
 
@@ -119,10 +119,10 @@ Access token dan buyer session disimpan dalam bentuk hash.
 
 ## 2.6 Avoid Hard Delete for Purchased Content
 
-Prompt dan pack yang pernah menjadi bagian purchase sebaiknya tetap ada sebagai:
+Prompt dan pack yang pernah menjadi bagian purchase tetap ada sebagai:
 
 ```text
-UNPUBLISHED
+UNPUBLISHED (prompt only)
 UNLISTED
 ARCHIVED
 ```
@@ -150,10 +150,10 @@ use_cases ─ prompt_use_cases
                           │
                           ▼
                        prompts
-                     ┌────┼───────────────┐
-                     │    │               │
-                     ▼    ▼               ▼
-           prompt_variables        prompt_images
+               ┌─────────┼───────────────┐
+               │         │               │
+               ▼         ▼               ▼
+       prompt_contents  prompt_variables  prompt_images
                                           │
                                           ▼
                                      media_assets
@@ -331,13 +331,13 @@ admin_role
 - ADMIN
 ```
 
-`FREE_UPDATE` is retained as a future-compatible value. MVP entitlement creation uses `PACK_SNAPSHOT`.
+MVP entitlement creation uses `PACK_SNAPSHOT`; `FREE_UPDATE` is reserved for a later reviewed workflow and cannot be issued by the paid-purchase completion function. Only the values listed above are valid; adding states requires a migration and updated transition tests.
 
 ---
 
 # 8. Admin Identity
 
-Supabase Auth owns admin credentials and authentication identity.
+Supabase Auth owns admin credentials and authentication identity. Disable public signup and manually provision each Admin Auth user together with an active `admin_profiles` row. A Supabase Auth identity alone does not grant RenderBank Admin rights; an absent or inactive profile is denied. No Admin sign-in UI is included in the foundation phase.
 
 Do not create custom admin password tables.
 
@@ -527,9 +527,9 @@ media_assets
 - bucket text NOT NULL
 - storage_path text UNIQUE NOT NULL
 - mime_type text NOT NULL
-- byte_size bigint NOT NULL
-- width integer nullable
-- height integer nullable
+- byte_size bigint NOT NULL CHECK (byte_size > 0)
+- width integer NOT NULL CHECK (width > 0)
+- height integer NOT NULL CHECK (height > 0)
 - blur_placeholder text nullable
 - created_by uuid nullable
 - created_at timestamptz NOT NULL DEFAULT now()
@@ -540,9 +540,10 @@ media_assets
 Rules:
 
 - never store access tokens or premium prompt text in metadata;
+- only validated preview images are accepted: the server checks declared MIME/extension and size, decodes image bytes, records positive dimensions, and assigns a generated safe object path before trusted upload; Storage policies cannot validate file bytes;
 - width/height are stored before rendering;
 - storage path must not reveal secrets;
-- public preview assets may live in a public-read bucket;
+- preview artwork and pack covers live in the public-read `prompt-previews` bucket; the application publishes only validated image references;
 - private assets, if introduced later, must use a separate private bucket.
 
 A separate derivative table is intentionally omitted from MVP unless image processing actually generates persistent variants.
@@ -560,13 +561,11 @@ prompts
 - title text NOT NULL
 - short_description text NOT NULL
 - description text nullable
-- prompt_template text NOT NULL
 - access_type prompt_access_type NOT NULL
 - category_id uuid NOT NULL
 - aspect_ratio text nullable
 - orientation orientation nullable
 - requires_reference_image boolean NOT NULL DEFAULT false
-- generation_notes text nullable
 - primary_sales_pack_id uuid nullable
 - status prompt_status NOT NULL DEFAULT DRAFT
 - last_tested_at timestamptz nullable
@@ -587,7 +586,8 @@ Rules:
 - published `PACK_ONLY` prompt requires a valid primary sales pack;
 - its primary sales pack must contain the prompt in `pack_prompts`;
 - the membership rule is validated in application/domain service or database trigger;
-- premium prompt body is never exposed by unauthorized public query;
+- this table contains safe metadata only; no recipe, protected variables, buyer data, or credentials;
+- public reads require `status = PUBLISHED`, with `UNLISTED`, `UNPUBLISHED`, `ARCHIVED`, and `DRAFT` excluded;
 - slug changes after publish create a redirect record;
 - `aspect_ratio` can support values such as `1:1`, `4:5`, `9:16`, `16:9`, or other valid ratios.
 
@@ -607,7 +607,30 @@ AND access_type = PACK_ONLY
 
 ---
 
-# 16. Prompt Variables
+# 16. Protected Prompt Content
+
+## prompt_contents
+
+```text
+prompt_contents
+- prompt_id uuid PRIMARY KEY
+- prompt_template text NOT NULL
+- generation_notes text nullable
+- created_at
+- updated_at
+```
+
+Relation:
+
+```text
+prompt_id → prompts.id ON DELETE CASCADE
+```
+
+This table contains the recipe for both Free and Pack-only Prompts. `anon` may read a row only when its parent Prompt is `PUBLISHED` and `FREE`. A Pack-only recipe is never directly readable by a browser role; the trusted server must validate the buyer's purchase-scoped entitlement before reading it. Do not serialize a protected body into public metadata, search results, HTML, or client props.
+
+---
+
+# 17. Prompt Variables
 
 ## prompt_variables
 
@@ -640,7 +663,7 @@ prompt_id → prompts.id ON DELETE CASCADE
 
 `sort_order` need not be unique. Render deterministically with `ORDER BY sort_order, id` so default values and concurrent inserts do not collide.
 
-Visitor-entered values are ephemeral browser state and are not stored by default.
+A variable row—including `key`, label, description, placeholder, default, and required state—is protected as a unit. `anon` may read variables only for a `PUBLISHED` `FREE` parent Prompt; variables of Pack-only Prompts are never directly readable by browser roles. Visitor-entered values are ephemeral browser state and are not stored by default.
 
 ---
 
@@ -935,7 +958,7 @@ PAID
 → paid_at IS NOT NULL
 ```
 
-`pack_id`, `pack_title_snapshot`, `amount_minor`, and `currency` are immutable after purchase creation. Application layer controls allowed payment-state transitions.
+`pack_id`, `pack_title_snapshot`, `amount_minor`, and `currency` are immutable after purchase creation. Checkout creates these terms from a published pack's authoritative price/currency in trusted server code, never from browser input. Only the trusted completion function may set `PAID`; it accepts `PROCESSING → PAID` once and rejects `FAILED` or `CANCELLED → PAID`. A `PAID` purchase cannot regress. Payment attempts may independently fail and be retried against the same purchase without changing these immutable terms.
 
 ---
 
@@ -952,6 +975,7 @@ payment_attempts
 - provider text NOT NULL
 - provider_attempt_id text nullable
 - idempotency_key text UNIQUE NOT NULL
+- checkout_claim_hash bytea UNIQUE NOT NULL CHECK (octet_length(checkout_claim_hash) = 32)
 - amount_minor bigint NOT NULL CHECK (amount_minor >= 0)
 - currency text NOT NULL CHECK (currency ~ '^[A-Z]{3}$')
 - status payment_attempt_status NOT NULL DEFAULT CREATED
@@ -974,7 +998,7 @@ ON payment_attempts (provider, provider_attempt_id)
 WHERE provider_attempt_id IS NOT NULL;
 ```
 
-Server always compares attempt amount/currency with authoritative purchase data. Attempt amount and currency are immutable after creation.
+The checkout claim is generated in trusted server memory, stored only as a hash, and never included in the payment-completion RPC. Server always compares attempt amount/currency with authoritative purchase data. Attempt amount, currency, provider, and purchase association are immutable after creation. A verified completion accepts an attempt in `CREATED` or `PROCESSING`, transitions it to `SUCCEEDED`, and rejects `FAILED`, `CANCELLED`, `EXPIRED`, or an already-succeeded attempt for a different event.
 
 ---
 
@@ -987,7 +1011,7 @@ payment_events
 - id uuid PRIMARY KEY
 - provider text NOT NULL
 - provider_event_id text NOT NULL
-- payment_attempt_id uuid nullable
+- payment_attempt_id uuid NOT NULL
 - event_type text NOT NULL
 - processing_status payment_event_status NOT NULL DEFAULT RECEIVED
 - provider_payload_digest text nullable
@@ -1010,6 +1034,7 @@ Rules:
 
 - verify webhook authenticity before state mutation;
 - duplicate event is safely ignored;
+- only a verified, normalized success event enters `complete_paid_purchase`; failed/unknown events are handled separately and cannot grant access;
 - raw provider payload should not be persisted by default;
 - if debug metadata is retained, it must be redacted/safe;
 - browser redirect cannot set purchase to `PAID`.
@@ -1045,29 +1070,7 @@ Constraint:
 UNIQUE(purchase_id, prompt_id)
 ```
 
-Creation flow:
-
-```text
-Verified payment becomes PAID
-        ↓
-BEGIN TRANSACTION
-        ↓
-lock/read purchase
-        ↓
-lock/read owning pack using SELECT ... FOR UPDATE
-        ↓
-if not already PAID:
-    update purchase
-        ↓
-read current pack_prompts while pack lock is held
-        ↓
-insert purchase_entitlements
-ON CONFLICT DO NOTHING
-        ↓
-ensure active access token exists
-        ↓
-COMMIT
-```
+Creation flow: a verified, normalized payment event calls `complete_paid_purchase` (section 39). The function locks the attempt, purchase, and owning pack; snapshots current `pack_prompts` into this table exactly once; and inserts the supplied candidate access-token hash only when newly paid. A duplicate event never changes this snapshot or creates another token.
 
 Authorization MUST query this snapshot rather than current `pack_prompts`.
 
@@ -1083,7 +1086,7 @@ Only token hashes are stored.
 access_tokens
 - id uuid PRIMARY KEY
 - purchase_id uuid NOT NULL
-- token_hash bytea UNIQUE NOT NULL
+- token_hash bytea UNIQUE NOT NULL CHECK (octet_length(token_hash) = 32)
 - status access_token_status NOT NULL DEFAULT ACTIVE
 - rotated_from_token_id uuid nullable
 - created_at timestamptz NOT NULL DEFAULT now()
@@ -1148,7 +1151,7 @@ Buyer sessions are custom RenderBank sessions, not Supabase Auth users.
 access_sessions
 - id uuid PRIMARY KEY
 - purchase_id uuid NOT NULL
-- session_hash bytea UNIQUE NOT NULL
+- session_hash bytea UNIQUE NOT NULL CHECK (octet_length(session_hash) = 32)
 - created_at timestamptz NOT NULL DEFAULT now()
 - expires_at timestamptz NOT NULL
 - last_seen_at timestamptz nullable
@@ -1174,7 +1177,7 @@ AND expires_at > now()
 AND purchase.entitlement_status = ACTIVE
 ```
 
-One session resolves to one purchase only.
+One session resolves to one purchase only. A successful payment-page checkout-claim exchange may create it only after the trusted server matches the short-lived claim hash to an attempt for the referenced `PAID` purchase with active entitlement; the purchase reference or buyer email alone cannot create a session. The emailed access token remains a separate return path.
 
 Purchases sharing an email are never automatically combined.
 
@@ -1358,6 +1361,7 @@ media_assets.created_by → auth.users.id ON DELETE SET NULL
 
 prompts.category_id → categories.id ON DELETE RESTRICT
 prompts.primary_sales_pack_id → packs.id ON DELETE RESTRICT
+prompt_contents.prompt_id → prompts.id ON DELETE CASCADE
 prompt_variables.prompt_id → prompts.id ON DELETE CASCADE
 prompt_images.prompt_id → prompts.id ON DELETE CASCADE
 prompt_images.media_asset_id → media_assets.id ON DELETE RESTRICT
@@ -1417,96 +1421,35 @@ Prefer lifecycle state changes over deletion.
 
 # 35. RLS Strategy
 
-All application tables should have RLS enabled as defense in depth.
+Enable RLS on every application table in an exposed schema. Revoke default access before granting a narrow read or mutation. Table grants and policies must both permit an operation; `service_role` bypasses RLS and therefore remains server-only.
 
-However RenderBank does not need to expose the database directly to public browser code.
+| Data | `anon` | `authenticated` without active Admin profile | Active Admin | Trusted backend |
+|---|---|---|---|---|
+| Published Prompt/Pack safe metadata and active published taxonomy | Read | Same public reads | Read/write | Narrow server use |
+| Published Free `prompt_contents` and `prompt_variables` | Read | Same public reads | Read/write | Narrow server use |
+| Pack-only recipe/variables and non-public content | None | None | Read/write | Read after server authorization |
+| Approved preview metadata and public Storage artwork | Read | Same public reads | Image associations: approved writes; asset records/objects: no direct write | Validated object upload and asset creation |
+| Purchases, events, entitlements, tokens, sessions, delivery and audit records | None | None | Approved operations only | Narrow server use |
 
-Recommended MVP policy:
+Public read policies filter `PUBLISHED` Prompt/Pack status and parent `FREE` access for recipes/variables. The safe `prompts` metadata row never contains protected body or variable values. Restrict public taxonomy and preview metadata to active records associated with published content; do not expose draft image associations or arbitrary uploaded paths through database reads. Public roles receive no application-table or Storage mutations. `authenticated` is not synonymous with Admin: every Admin mutation policy checks the Auth identity against an active `admin_profiles` row, while server mutations independently verify Auth identity and validate inputs. Commerce, access, and audit mutations use narrowly authorized server operations; Admin Auth alone does not imply unrestricted write access.
 
-```text
-anon
-→ no direct domain-table access
-
-authenticated non-admin
-→ no domain-table access
-
-Next.js server with service role
-→ database operations
-
-Supabase Auth admin
-→ identity only
-→ business operations still pass through Next.js server
-```
-
-This keeps one business-rule boundary.
-
-Important:
-
-- Supabase service-role key is server-only;
-- never expose service-role key to browser;
-- admin Auth JWT is validated by server;
-- `admin_profiles` determines whether authenticated user is an active RenderBank admin.
-
-If direct Supabase browser queries are introduced later, explicit narrow RLS policies must be designed first.
+Revoke RPC execution from `PUBLIC`, `anon`, and `authenticated` unless a function is explicitly approved for those roles. The paid-purchase completion function is granted to `service_role` only. Test these policies using real local Supabase roles and an authenticated identity with and without an active profile.
 
 ---
 
 # 36. Supabase Storage Policy
 
-Recommended buckets:
+Use one public bucket, `prompt-previews`, for approved Prompt preview artwork and pack covers only. Public object reads are allowed; reads of `media_assets` and `prompt_images` metadata still obey publication policies. Because every object in a public bucket is readable immediately, the trusted server verifies the active Admin profile and validates decoded image bytes, MIME, extension, dimensions, size, and a generated safe path **before** uploading with its server-only Storage credential. Storage policies deny object mutations to `anon` and `authenticated` (including Admin JWTs); only this trusted upload path may insert, replace, or remove objects. The server alone creates or updates `media_assets` for validated objects; Admin image associations can reference those assets through approved policies. A bucket upload alone does not publish a Prompt or Pack.
 
-```text
-renderbank-public
-```
-
-Contains:
-
-- prompt preview images;
-- pack covers;
-- public artwork.
-
-Read:
-
-```text
-public
-```
-
-Write:
-
-```text
-admin only / signed server-controlled upload
-```
-
-Future private bucket may be created only if RenderBank introduces non-public binary assets.
-
-Access credentials must never appear in storage object metadata.
+Never store Premium text, Buyer data, credentials, or raw tokens in object bytes, names, or metadata. Add a separate private bucket only if non-public binary assets become a real requirement.
 
 ---
 
 # 37. Premium Prompt Data Boundary
 
-The presence of `prompt_template` in the database does not mean it may be returned to every application request.
+`prompts` contains safe metadata. `prompt_contents` contains recipes and generation notes, and `prompt_variables` contains protected variable definitions. A published Free Prompt may expose its complete recipe and variables to `anon`; Pack-only content and variables must never be returned by a browser-role database query.
 
-Repository/service contract:
-
-```text
-getPublicPrompt(slug)
-→ safe metadata only for PACK_ONLY
-
-getAuthorizedPrompt(slug, purchaseId)
-→ verifies purchase_entitlements
-→ returns protected prompt body only if entitled
-```
-
-Avoid data access patterns such as:
-
-```text
-SELECT * FROM prompts
-```
-
-on public route services.
-
-Use explicit projections.
+Public route services query published metadata with explicit projections. A trusted server loads a Pack-only recipe only after checking the purchase-scoped session and the entitlement query in section 52. `SELECT *` across protected joins, public serialization of protected values, and authorization by current pack membership are not acceptable.
 
 ---
 
@@ -1543,36 +1486,34 @@ access data
 
 # 39. Payment Transaction Boundary
 
-When verified payment becomes newly `PAID`, use one DB transaction.
+`complete_paid_purchase` is a narrow PostgreSQL function called only after the Next.js backend verifies the provider event's authenticity and normalizes a successful payment. Neither browser redirects nor an opaque public reference may call it. The function is `SECURITY INVOKER`, uses schema-qualified objects, has `EXECUTE` revoked from `PUBLIC`, `anon`, and `authenticated`, and grants `EXECUTE` only to `service_role`.
 
-Concept:
+Inputs:
 
 ```text
-BEGIN
-
-SELECT purchase FOR UPDATE
-SELECT owning pack FOR UPDATE
-
-if already PAID:
-    COMMIT / no-op
-
-else:
-    UPDATE purchase → PAID
-
-    INSERT entitlement snapshot
-      FROM current pack_prompts while pack lock is held
-      ON CONFLICT DO NOTHING
-
-    ensure one ACTIVE access token record
-
-COMMIT
+p_provider text
+p_provider_event_id text
+p_provider_attempt_id text
+p_event_type text
+p_verified_status text
+p_expected_pack_id uuid
+p_amount_minor bigint
+p_currency text
+p_token_hash bytea
 ```
 
-Every `pack_prompts` mutation acquires the same owning-pack lock before changing composition. This serializes the entitlement snapshot with pack edits without introducing pack-version tables.
+Output: one row `(purchase_id uuid, newly_completed boolean)`. All inputs are required and nonblank where textual. `p_event_type` is a normalized provider event type recorded on `payment_events`, not an untrusted payload field; it does not authorize payment independently. `p_verified_status` must equal `SUCCEEDED`; any other status is rejected. The candidate hash is 32 bytes, derived from a fresh high-entropy raw token held only in trusted server memory. The caller supplies normalized fields from a verified success event, not browser input. The database compares them with the immutable purchase and payment-attempt records; `p_expected_pack_id` is the provider's verified product mapping, not an untrusted client selection. The provider attempt ID must resolve exactly one stored attempt for the same provider.
 
-Email delivery happens after durable database commit.
+In one transaction, the function:
 
-Email failure does not roll back a valid purchase.
+1. Finds the attempt by `(provider, provider_attempt_id)` and locks it and its purchase; rejects missing or conflicting references.
+2. Locks the owning Pack row. Every `pack_prompts` insert/update/delete acquires the same Pack-row lock before changing membership, so the snapshot is serial with Pack edits.
+3. Resolves `(provider, provider_event_id)` idempotently. An existing event is a no-op **only** if its attempt matches and it is already `PROCESSED` for a `PAID` purchase; return the same purchase ID with `newly_completed = false`. A reused event ID for another attempt or an unfinished event is an error.
+4. On a new event, compares provider, verified Pack ID, amount, and currency to the stored attempt/purchase and rejects any mismatch. Accepts only a `PROCESSING` purchase and a `CREATED` or `PROCESSING` attempt; `FAILED`, `CANCELLED`, `EXPIRED`, a previously `PAID` purchase under a new event, or any regressive state is rejected.
+5. Requires `p_verified_status = SUCCEEDED`, inserts the unique event with `p_event_type`, changes attempt to `SUCCEEDED` and purchase to `PAID` with `paid_at`, copies current `pack_prompts` into `purchase_entitlements` once, inserts the candidate hash as the sole active token, and marks the event `PROCESSED`.
+6. Returns `(purchase.id, true)` only after the transaction succeeds. Any failure rolls back event, states, entitlements, and token together.
+
+A duplicate verified event returns `newly_completed = false`; its unused candidate raw token is discarded and no email is sent. A *different* event for a paid purchase never mints another token. Email delivery is after commit and maintains independent status; email failure cannot undo the purchase or snapshot. The raw token is never persisted. Test duplicate delivery, mismatched provider/product/amount/currency, invalid transitions, public RPC denial, and unchanged entitlements after Pack edits against real local roles.
 
 ---
 
@@ -1829,12 +1770,13 @@ Logs and audit metadata should reference internal entity IDs rather than duplica
 024_media_assets
 
 030_prompts
-031_prompt_variables
-032_prompt_images
-033_prompt_models
-034_prompt_tags
-035_prompt_use_cases
-036_prompt_slug_redirects
+031_prompt_contents
+032_prompt_variables
+033_prompt_images
+034_prompt_models
+035_prompt_tags
+036_prompt_use_cases
+037_prompt_slug_redirects
 
 040_packs
 041_pack_prompts
@@ -1857,7 +1799,7 @@ Logs and audit metadata should reference internal entity IDs rather than duplica
 071_search_indexes
 080_rls
 081_storage_policies
-090_seed_reference_data
+090_seed_demo_content
 ```
 
 The exact numbering may change during implementation.
@@ -1866,26 +1808,9 @@ The exact numbering may change during implementation.
 
 # 49. Initial Seed Data
 
-Seed only stable reference data.
+Local `supabase/seed.sql` contains deterministic, clearly labeled **Demo Content** for policy and feature development: reference categories/models/tags/use cases, at least one published Free Prompt with content and variables, one published Pack-only Prompt in a published Pack, approved preview media metadata, and representative non-public lifecycle records. Demo content is not curated/tested launch inventory: do not assign `TESTED` model relations or `last_tested_at` without real validation. Production launch content is provisioned separately.
 
-Recommended:
-
-```text
-categories
-models
-common use cases
-```
-
-Do not seed:
-
-```text
-fake purchases
-fake access tokens
-production admin passwords
-provider credentials
-```
-
-Admin Supabase Auth identity should be provisioned separately and linked to `admin_profiles`.
+Do not seed fake purchases, raw or hashed access credentials, production Admin passwords, payment/provider secrets, or real Buyer data. Test-only purchase and token fixtures belong in isolated transactional tests, not reusable seed data. Admin Supabase Auth users are provisioned manually and linked to active `admin_profiles` rows.
 
 ---
 
@@ -1908,6 +1833,7 @@ use_cases
 media_assets
 
 prompts
+prompt_contents
 prompt_variables
 prompt_images
 prompt_models
@@ -1940,7 +1866,7 @@ email_deliveries
 Total domain tables:
 
 ```text
-24
+25
 ```
 
 This is intentionally relational and explicit rather than placing core business data into large JSON blobs.
@@ -2100,21 +2026,11 @@ No historical pack-version table is necessary for MVP because `purchase_entitlem
 
 ---
 
-# 55. Recommended Next Step
+# 55. Implementation Handoff
 
-After approval of this schema design:
+This proposed schema contract requires Slice 0 review before SQL migrations. Route/API contracts are added with the feature slice that consumes them rather than as speculative foundation scaffolding.
 
-```text
-DATABASE_SCHEMA.md
-        ↓
-SUPABASE_MIGRATIONS / SQL
-        ↓
-API_CONTRACT.md
-        ↓
-IMPLEMENTATION_PLAN.md
-```
-
-The next technical artifact should convert this design into exact PostgreSQL/Supabase migrations including:
+After that review, the slices in [`FOUNDATION_IMPLEMENTATION_PLAN.md`](FOUNDATION_IMPLEMENTATION_PLAN.md) convert the contract into exact PostgreSQL/Supabase migrations including:
 
 - enum creation;
 - tables;
@@ -2124,4 +2040,4 @@ The next technical artifact should convert this design into exact PostgreSQL/Sup
 - triggers;
 - RLS enablement;
 - storage policies;
-- initial reference data.
+- local Demo Content.

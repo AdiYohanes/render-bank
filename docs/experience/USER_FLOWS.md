@@ -877,7 +877,7 @@ Payment Provider
    ↓
 Return to RenderBank
    ↓
-Server state = PENDING
+Purchase state = PROCESSING (shown as Pending)
    ↓
 /payment/pending
    ↓
@@ -891,13 +891,13 @@ Server checks current purchase state
 Possible outcomes:
 
 ```text
-PENDING → remain pending
-PAID    → redirect success
+PROCESSING → remain pending
+PAID       → redirect success
 FAILED  → redirect failed
 CANCELLED → redirect cancelled
 ```
 
-Premium access tidak diberikan selama `PENDING`.
+Premium access tidak diberikan selama purchase masih `PROCESSING` (UI: Pending).
 
 ---
 
@@ -995,39 +995,32 @@ Buyer mendapatkan premium access tanpa membawa token ke seluruh website.
 ```text
 /payment/success
       ↓
-Open My Pack
+Open My Pack (purchase reference + checkout claim cookie)
       ↓
-/access/[token]
+Server validates PAID purchase, active entitlement, and claim hash
       ↓
-Server validates token
-      ↓
-Valid?
- ┌────┴────┐
- No        Yes
- ↓          ↓
-Invalid     Create secure access session
-Access      ↓
-State       Rotate session identifier
-            ↓
-         Redirect
-            ↓
-         /access
+Invalid → Access denied
+Valid   → Create purchase-scoped secure session
+          ↓
+          Set fresh HttpOnly session cookie
+          ↓
+          Redirect /access
 ```
 
 ## Important Rules
 
-Setelah token valid:
+Setelah checkout claim dan purchase valid:
 
-- token tidak ikut ke destination URL;
+- raw access token tidak diperlukan pada success page dan tidak ikut ke destination URL;
 - secure session dibuat server-side;
-- session identifier dirotasi;
+- session identifier baru dibuat setiap exchange; session lama untuk cookie tersebut di-revoke jika ada;
 - session cookie menggunakan `HttpOnly`, `Secure`, dan `SameSite=Lax`;
 - session memiliki expiration;
 - premium access bergantung pada session + entitlement;
 - session hanya membuka satu purchase;
 - token tidak dikirim ke analytics.
 
-Access token bersifat long-lived dan tidak dirotasi pada validasi normal. Token hanya di-revoke atau di-rotate melalui tindakan admin atau alasan keamanan. Purchased entitlement tetap permanen meskipun browser session berakhir.
+Success-page claim exchange hanya berlaku selama checkout claim cookie masih valid; purchase reference saja tidak memberikan access. Email link tetap memakai `/access/[token]` untuk kunjungan berikutnya. Access token bersifat long-lived dan tidak dirotasi pada validasi normal. Token hanya di-revoke atau di-rotate melalui tindakan admin atau alasan keamanan. Purchased entitlement tetap permanen meskipun browser session berakhir.
 
 ---
 
@@ -1057,7 +1050,7 @@ Create / Refresh Secure Session
 Redirect /access
 ```
 
-Jika email gagal dikirim, buyer tetap dapat masuk dari success page pada initial purchase.
+Jika email gagal dikirim, buyer tetap dapat masuk dari success page pada initial purchase selama checkout claim cookie masih valid; setelah itu, operator perlu membantu pengiriman link pengganti.
 
 ---
 
@@ -1725,7 +1718,7 @@ Open My Pack
 Secure Access
 ```
 
-Buyer tetap bisa menggunakan purchase pada current browser session.
+Buyer tetap bisa menggunakan purchase pada current browser selama checkout claim cookie masih valid; `Open My Pack` menukar claim tersebut menjadi purchase-scoped session tanpa menunggu email.
 
 ## Admin Experience
 

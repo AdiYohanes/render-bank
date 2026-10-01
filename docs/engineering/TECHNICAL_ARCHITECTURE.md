@@ -124,7 +124,7 @@ Visitor / Buyer / Admin
 | Actor | Credential | Allowed Boundary |
 |---|---|---|
 | Visitor | Supabase publishable key (`anon`) | Published safe metadata, free content, public artwork |
-| Admin | Publishable key + Supabase Auth JWT (`authenticated`) | Approved admin operations; each mutation is authorized server-side |
+| Admin | Publishable key + Supabase Auth JWT (`authenticated`) + active `admin_profiles` row | Approved admin operations; each mutation is authorized server-side |
 | Buyer | Custom HttpOnly purchase session | One purchase and its entitlement through trusted Next.js server code |
 | Trusted backend | Supabase secret key (`service_role`) | Narrow checkout, webhook, access, and email operations only |
 
@@ -297,7 +297,7 @@ prompts                         -- safe metadata only
 - aspect_ratio, orientation
 - requires_reference_image
 - primary_sales_pack_id nullable
-- status: DRAFT | PUBLISHED | UNLISTED | ARCHIVED
+- status: DRAFT | PUBLISHED | UNPUBLISHED | UNLISTED | ARCHIVED
 - published_at, created_at, updated_at
 
 prompt_contents                 -- never public for premium prompts
@@ -310,11 +310,13 @@ prompt_variables                -- protected with the same parent access rule
 - id, prompt_id, key, label, description
 - placeholder, default_value, required, sort_order
 
-prompt_images                   -- public preview metadata only
-- id, prompt_id, storage_path
-- alt_text, width, height, format
-- aspect_ratio, focal_point nullable
-- sort_order, is_primary, created_at
+media_assets                    -- validated preview-file metadata
+- id, bucket, storage_path, mime_type, byte_size
+- width, height, blur_placeholder nullable, created_by, created_at
+
+prompt_images                   -- published-parent preview associations
+- id, prompt_id, media_asset_id, alt_text
+- focal_x, focal_y nullable, sort_order, is_primary, created_at
 
 prompt_models
 - prompt_id, model_id, sort_order
@@ -333,7 +335,7 @@ Separating `prompt_contents` from `prompts` prevents sensitive columns from shar
 ```text
 packs
 - id, slug UNIQUE, title, description
-- cover_image_id nullable
+- cover_asset_id nullable → media_assets.id
 - price_minor, currency
 - status: DRAFT | PUBLISHED | UNLISTED | ARCHIVED
 - published_at, created_at, updated_at
@@ -354,16 +356,15 @@ Money is stored as integer minor units where supported. Price and currency alway
 purchases
 - id, public_reference UNIQUE opaque
 - buyer_email_normalized
-- pack_id, amount_minor, currency
-- payment_provider
+- pack_id, pack_title_snapshot, amount_minor, currency
 - payment_status: PROCESSING | PAID | FAILED | CANCELLED
 - entitlement_status: ACTIVE | SUSPENDED
 - paid_at nullable, created_at, updated_at
 
 payment_attempts
 - id, purchase_id, provider
-- provider_attempt_id UNIQUE
-- checkout_claim_hash
+- UNIQUE(provider, provider_attempt_id) when present; idempotency_key UNIQUE
+- checkout_claim_hash, amount_minor, currency
 - status, expires_at, created_at, updated_at
 
 payment_events
@@ -397,11 +398,11 @@ access_sessions
 - created_at, expires_at, last_seen_at, revoked_at
 
 email_deliveries
-- id, purchase_id, type
-- status: PENDING | SENT | FAILED
-- provider_message_id nullable
-- attempt_count, safe_error_code nullable
-- sent_at, created_at, updated_at
+- id, purchase_id, purpose, recipient_email_normalized
+- status: QUEUED | SENT | DELIVERED | FAILED
+- provider, provider_message_id nullable
+- attempt_number, safe_error_code nullable
+- sent_at, delivered_at, failed_at, created_at
 ```
 
 Only token and session hashes are stored. A buyer session maps to exactly one purchase; purchases sharing an email are not combined.
@@ -442,7 +443,7 @@ Enable RLS on every table in an exposed schema. Default is no access until an ex
 | Free published content/variables | Read | Read/write | Narrow server use |
 | Premium content/variables | No direct read | Read/write | Read after buyer authorization |
 | Categories/models/tags | Published read | Read/write | Narrow server use |
-| Preview Storage objects | Public read | Admin write | Narrow server use |
+| Preview Storage objects | Public read | No direct write | Validated server upload only |
 | Purchases/payment events | No access | Approved admin read/actions | Checkout/webhook only |
 | Entitlements/tokens/sessions | No access | Approved admin operations | Access services only |
 | Email delivery records | No access | Approved admin read/retry | Mail workflow only |
@@ -453,7 +454,7 @@ Enable RLS on every table in an exposed schema. Default is no access until an ex
 - Published public metadata policies filter lifecycle state.
 - Free content policies require the parent prompt to be `PUBLISHED` and `FREE`.
 - Premium content is never directly available to a buyer through Supabase. Trusted Next.js code resolves the buyer session and returns only authorized content.
-- Admin policies use verified Supabase Auth identity.
+- Admin policies use verified Supabase Auth identity and active `admin_profiles` membership.
 - Lifecycle/business invariants remain in domain validation and database constraints; UI visibility is not authorization.
 - RPC execution is revoked from `public`, `anon`, and `authenticated` unless a function is explicitly designed for them.
 
@@ -470,19 +471,19 @@ Supabase Auth is used only for RenderBank administrators.
 - Disable public signup.
 - Provision admin users manually.
 - Use Supabase server-side Auth with request-specific cookie handling.
-- Verify identity server-side with validated claims/user lookup; do not authorize from unverified cookie content or `getSession()` alone.
+- Verify identity server-side with validated claims/user lookup and an active `admin_profiles` row; do not authorize from unverified cookie content or `getSession()` alone.
 - Every `/admin/*` mutation repeats authorization server-side.
 - Buyer access never uses Supabase Auth.
 - Do not build custom passwords, custom admin session tables, RBAC, or an Auth-provider abstraction.
 
-For MVP, every provisioned Supabase Auth user is an admin. Before introducing any other authenticated actor, add an explicit admin allowlist/role model and update RLS first.
+For MVP, provision each Admin Supabase Auth identity manually together with an active `admin_profiles` row. An Auth identity without an active profile is not a RenderBank Admin and receives only public-role reads; RLS and every server mutation check the active profile. Do not add another authenticated actor without reviewing these grants and policies.
 
 ## 9.2 Mutation Flow
 
 ```text
 Admin request
    ↓
-verify Supabase Auth identity
+verify Supabase Auth identity + active `admin_profiles` row
    ↓
 validate mutation input
    ↓
@@ -558,7 +559,7 @@ Browser success/cancel URLs only control presentation. They never update payment
 
 ## 10.3 Atomic Completion RPC
 
-`complete_paid_purchase` is a narrow PostgreSQL function callable only by the trusted backend. It performs one transaction:
+`complete_paid_purchase` is a narrow PostgreSQL function callable only by the trusted backend. Its exact inputs, output, and state contract are owned by [`DATABASE_SCHEMA.md` section 39](DATABASE_SCHEMA.md#39-payment-transaction-boundary). It performs one transaction:
 
 1. insert or resolve unique `(provider, provider_event_id)`;
 2. lock the matching payment attempt and purchase;
@@ -592,7 +593,7 @@ Immediate “Open My Pack” requires all three:
 2. matching checkout claim cookie whose hash belongs to the payment attempt;
 3. server purchase state `PAID` with active entitlement.
 
-A payment reference without the secret claim cannot create access.
+A payment reference without the secret claim cannot create access. On `Open My Pack`, the server hashes the short-lived HttpOnly claim, matches it to an attempt for that purchase, checks `PAID` and active entitlement, creates a fresh purchase-scoped session (revoking a prior session presented in that cookie), sets its HttpOnly cookie, and redirects to `/access`. This does not require or reveal the raw email access token. A missing, expired, or mismatched claim cannot create a session; a later visit uses the emailed `/access/[token]` link.
 
 Pending state may offer an explicit **Check Again** action or bounded polling if UX testing requires it. Realtime is not used.
 
@@ -678,28 +679,28 @@ Because raw tokens are not recoverable, “resend access email” creates or rot
 
 ## 12.1 Bucket Model
 
-Use one public bucket such as `prompt-previews` for preview artwork and pack covers only.
+Use one public bucket, `prompt-previews`, for preview artwork and pack covers only.
 
 - Public may read objects.
-- Authenticated admins may upload, replace, and remove through explicit policies.
+- The trusted server verifies an active Admin profile and validates image bytes before uploading; Storage policies deny direct `anon` and `authenticated` object mutations, including Admin JWTs.
+- The public bucket serves every stored object immediately; validation precedes upload, while database image rows determine whether content uses the object.
 - Premium prompt text, buyer data, and credentials never enter Storage.
 - Generated/versioned object paths are used instead of raw filenames.
-- Database image rows determine publication; uploading an object alone does not publish it.
 
 ## 12.2 Upload Pipeline
 
 ```text
 verify admin
    ↓
-validate declared MIME, extension, size, and dimensions
+validate declared MIME, extension, and size
    ↓
-decode/inspect image server-side where required
+decode image server-side; validate bytes and dimensions
    ↓
 generate safe object path
    ↓
 upload object
    ↓
-write width/height/format/alt/focal metadata
+write validated media_asset and prompt_images metadata
    ↓
 publish content only after validation succeeds
 ```
@@ -918,7 +919,7 @@ Generated database types must match the migrated schema with no uncommitted drif
 
 ## 16.2 High-Value Database and RLS Tests
 
-- `anon` reads published metadata and published free content.
+- `anon` reads published metadata and published free content; Premium recipes and protected variables are separated from safe Prompt metadata.
 - `anon` cannot read premium content/variables, purchases, buyer email, events, entitlements, tokens, sessions, or email deliveries.
 - unauthenticated users cannot mutate content or Storage.
 - verified admins can perform approved content operations.
@@ -980,7 +981,7 @@ Before release, verify critical routes on mobile and desktop for:
 - Create migrations for schema, grants, RLS, RPC, and seed data.
 - Generate TypeScript database types.
 - Create separate browser, server, and service-role Supabase clients.
-- Configure Storage bucket and admin mutation policies.
+- Configure public Storage reads, deny direct object mutations, and authorize validated server uploads for active Admins.
 
 ## Phase 2 — Public Discovery
 
