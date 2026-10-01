@@ -1072,7 +1072,7 @@ UNIQUE(purchase_id, prompt_id)
 
 Creation flow: a verified, normalized payment event calls `complete_paid_purchase` (section 39). The function locks the attempt, purchase, and owning pack; snapshots current `pack_prompts` into this table exactly once; and inserts the supplied candidate access-token hash only when newly paid. A duplicate event never changes this snapshot or creates another token.
 
-Authorization MUST query this snapshot rather than current `pack_prompts`.
+Authorization MUST query this snapshot rather than current `pack_prompts`. Snapshot identity (`id`, `purchase_id`, `prompt_id`, `source`, `granted_at`) cannot be updated, and entitlement rows cannot be deleted; `revoked_at` may change without erasing historical membership.
 
 ---
 

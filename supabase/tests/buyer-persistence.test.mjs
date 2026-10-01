@@ -84,6 +84,19 @@ test("hash-only credentials, provider identities and entitlement pairs remain un
   assert.doesNotMatch(columns, /:token$|:session$|:checkout_claim$/m);
 });
 
+test("entitlement snapshot identity cannot change or be deleted", () => {
+  const entitlement = `${setup} insert into public.purchase_entitlements(purchase_id,prompt_id)
+    select id,'${prompt}' from buyer_fixture;`;
+  rejects(`${entitlement} update public.purchase_entitlements set granted_at = now() + interval '1 day'
+    where purchase_id in (select id from buyer_fixture);`, /Entitlement snapshot is immutable/);
+  rejects(`${entitlement} update public.purchase_entitlements set prompt_id = '00000000-0000-4000-8000-000000000604'
+    where purchase_id in (select id from buyer_fixture);`, /Entitlement snapshot is immutable/);
+  rejects(`${entitlement} delete from public.purchase_entitlements
+    where purchase_id in (select id from buyer_fixture);`, /Entitlement snapshot is immutable/);
+  assert.match(sql(`${entitlement} update public.purchase_entitlements set revoked_at = now()
+    where purchase_id in (select id from buyer_fixture); select count(*) from public.purchase_entitlements where revoked_at is not null;`), /\n1\n/);
+});
+
 test("Buyer sessions and token rotation cannot cross purchases sharing an email", () => {
   const twoPurchases = `${setup} create temporary table other_buyer as
     select purchase_id as id from public.create_processing_purchase('buyer@example.invalid','${pack}','demo',repeat('s',32),repeat('l',32),decode(repeat('bc',32),'hex'),now()+interval '15 minutes');`;
