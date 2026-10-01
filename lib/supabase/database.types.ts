@@ -9,6 +9,92 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
+      access_sessions: {
+        Row: {
+          created_at: string;
+          expires_at: string;
+          id: string;
+          last_seen_at: string | null;
+          purchase_id: string;
+          revoked_at: string | null;
+          session_hash: string;
+        };
+        Insert: {
+          created_at?: string;
+          expires_at: string;
+          id?: string;
+          last_seen_at?: string | null;
+          purchase_id: string;
+          revoked_at?: string | null;
+          session_hash: string;
+        };
+        Update: {
+          created_at?: string;
+          expires_at?: string;
+          id?: string;
+          last_seen_at?: string | null;
+          purchase_id?: string;
+          revoked_at?: string | null;
+          session_hash?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "access_sessions_purchase_id_fkey";
+            columns: ["purchase_id"];
+            isOneToOne: false;
+            referencedRelation: "purchases";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      access_tokens: {
+        Row: {
+          created_at: string;
+          id: string;
+          last_used_at: string | null;
+          purchase_id: string;
+          revoked_at: string | null;
+          rotated_from_token_id: string | null;
+          status: Database["public"]["Enums"]["access_token_status"];
+          token_hash: string;
+        };
+        Insert: {
+          created_at?: string;
+          id?: string;
+          last_used_at?: string | null;
+          purchase_id: string;
+          revoked_at?: string | null;
+          rotated_from_token_id?: string | null;
+          status?: Database["public"]["Enums"]["access_token_status"];
+          token_hash: string;
+        };
+        Update: {
+          created_at?: string;
+          id?: string;
+          last_used_at?: string | null;
+          purchase_id?: string;
+          revoked_at?: string | null;
+          rotated_from_token_id?: string | null;
+          status?: Database["public"]["Enums"]["access_token_status"];
+          token_hash?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "access_tokens_purchase_id_fkey";
+            columns: ["purchase_id"];
+            isOneToOne: false;
+            referencedRelation: "purchases";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "access_tokens_rotated_from_token_id_purchase_id_fkey";
+            columns: ["rotated_from_token_id", "purchase_id"];
+            isOneToOne: false;
+            referencedRelation: "access_tokens";
+            referencedColumns: ["id", "purchase_id"];
+          },
+        ];
+      };
       admin_profiles: {
         Row: {
           created_at: string;
@@ -68,6 +154,62 @@ export type Database = {
           updated_at?: string;
         };
         Relationships: [];
+      };
+      email_deliveries: {
+        Row: {
+          attempt_number: number;
+          created_at: string;
+          delivered_at: string | null;
+          failed_at: string | null;
+          id: string;
+          provider: string;
+          provider_message_id: string | null;
+          purchase_id: string;
+          purpose: Database["public"]["Enums"]["email_purpose"];
+          recipient_email_normalized: string;
+          safe_error_code: string | null;
+          sent_at: string | null;
+          status: Database["public"]["Enums"]["email_delivery_status"];
+        };
+        Insert: {
+          attempt_number?: number;
+          created_at?: string;
+          delivered_at?: string | null;
+          failed_at?: string | null;
+          id?: string;
+          provider: string;
+          provider_message_id?: string | null;
+          purchase_id: string;
+          purpose?: Database["public"]["Enums"]["email_purpose"];
+          recipient_email_normalized: string;
+          safe_error_code?: string | null;
+          sent_at?: string | null;
+          status?: Database["public"]["Enums"]["email_delivery_status"];
+        };
+        Update: {
+          attempt_number?: number;
+          created_at?: string;
+          delivered_at?: string | null;
+          failed_at?: string | null;
+          id?: string;
+          provider?: string;
+          provider_message_id?: string | null;
+          purchase_id?: string;
+          purpose?: Database["public"]["Enums"]["email_purpose"];
+          recipient_email_normalized?: string;
+          safe_error_code?: string | null;
+          sent_at?: string | null;
+          status?: Database["public"]["Enums"]["email_delivery_status"];
+        };
+        Relationships: [
+          {
+            foreignKeyName: "email_deliveries_purchase_id_fkey";
+            columns: ["purchase_id"];
+            isOneToOne: false;
+            referencedRelation: "purchases";
+            referencedColumns: ["id"];
+          },
+        ];
       };
       media_assets: {
         Row: {
@@ -252,6 +394,109 @@ export type Database = {
             columns: ["cover_asset_id"];
             isOneToOne: false;
             referencedRelation: "media_assets";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      payment_attempts: {
+        Row: {
+          amount_minor: number;
+          checkout_claim_hash: string;
+          created_at: string;
+          currency: string;
+          expires_at: string | null;
+          id: string;
+          idempotency_key: string;
+          provider: string;
+          provider_attempt_id: string | null;
+          purchase_id: string;
+          status: Database["public"]["Enums"]["payment_attempt_status"];
+          updated_at: string;
+        };
+        Insert: {
+          amount_minor: number;
+          checkout_claim_hash: string;
+          created_at?: string;
+          currency: string;
+          expires_at?: string | null;
+          id?: string;
+          idempotency_key: string;
+          provider: string;
+          provider_attempt_id?: string | null;
+          purchase_id: string;
+          status?: Database["public"]["Enums"]["payment_attempt_status"];
+          updated_at?: string;
+        };
+        Update: {
+          amount_minor?: number;
+          checkout_claim_hash?: string;
+          created_at?: string;
+          currency?: string;
+          expires_at?: string | null;
+          id?: string;
+          idempotency_key?: string;
+          provider?: string;
+          provider_attempt_id?: string | null;
+          purchase_id?: string;
+          status?: Database["public"]["Enums"]["payment_attempt_status"];
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "payment_attempts_purchase_id_fkey";
+            columns: ["purchase_id"];
+            isOneToOne: false;
+            referencedRelation: "purchases";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      payment_events: {
+        Row: {
+          event_type: string;
+          id: string;
+          payment_attempt_id: string;
+          processed_at: string | null;
+          processing_status: Database["public"]["Enums"]["payment_event_status"];
+          provider: string;
+          provider_event_id: string;
+          provider_payload_digest: string | null;
+          received_at: string;
+          safe_error_code: string | null;
+          safe_metadata: NonNullable<Json>;
+        };
+        Insert: {
+          event_type: string;
+          id?: string;
+          payment_attempt_id: string;
+          processed_at?: string | null;
+          processing_status?: Database["public"]["Enums"]["payment_event_status"];
+          provider: string;
+          provider_event_id: string;
+          provider_payload_digest?: string | null;
+          received_at?: string;
+          safe_error_code?: string | null;
+          safe_metadata?: NonNullable<Json>;
+        };
+        Update: {
+          event_type?: string;
+          id?: string;
+          payment_attempt_id?: string;
+          processed_at?: string | null;
+          processing_status?: Database["public"]["Enums"]["payment_event_status"];
+          provider?: string;
+          provider_event_id?: string;
+          provider_payload_digest?: string | null;
+          received_at?: string;
+          safe_error_code?: string | null;
+          safe_metadata?: NonNullable<Json>;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "payment_events_payment_attempt_id_fkey";
+            columns: ["payment_attempt_id"];
+            isOneToOne: false;
+            referencedRelation: "payment_attempts";
             referencedColumns: ["id"];
           },
         ];
@@ -595,6 +840,101 @@ export type Database = {
           },
         ];
       };
+      purchase_entitlements: {
+        Row: {
+          granted_at: string;
+          id: string;
+          prompt_id: string;
+          purchase_id: string;
+          revoked_at: string | null;
+          source: Database["public"]["Enums"]["entitlement_source"];
+        };
+        Insert: {
+          granted_at?: string;
+          id?: string;
+          prompt_id: string;
+          purchase_id: string;
+          revoked_at?: string | null;
+          source?: Database["public"]["Enums"]["entitlement_source"];
+        };
+        Update: {
+          granted_at?: string;
+          id?: string;
+          prompt_id?: string;
+          purchase_id?: string;
+          revoked_at?: string | null;
+          source?: Database["public"]["Enums"]["entitlement_source"];
+        };
+        Relationships: [
+          {
+            foreignKeyName: "purchase_entitlements_prompt_id_fkey";
+            columns: ["prompt_id"];
+            isOneToOne: false;
+            referencedRelation: "prompts";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "purchase_entitlements_purchase_id_fkey";
+            columns: ["purchase_id"];
+            isOneToOne: false;
+            referencedRelation: "purchases";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      purchases: {
+        Row: {
+          amount_minor: number;
+          buyer_email_normalized: string;
+          created_at: string;
+          currency: string;
+          entitlement_status: Database["public"]["Enums"]["entitlement_status"];
+          id: string;
+          pack_id: string;
+          pack_title_snapshot: string;
+          paid_at: string | null;
+          payment_status: Database["public"]["Enums"]["payment_status"];
+          public_reference: string;
+          updated_at: string;
+        };
+        Insert: {
+          amount_minor: number;
+          buyer_email_normalized: string;
+          created_at?: string;
+          currency: string;
+          entitlement_status?: Database["public"]["Enums"]["entitlement_status"];
+          id?: string;
+          pack_id: string;
+          pack_title_snapshot: string;
+          paid_at?: string | null;
+          payment_status?: Database["public"]["Enums"]["payment_status"];
+          public_reference: string;
+          updated_at?: string;
+        };
+        Update: {
+          amount_minor?: number;
+          buyer_email_normalized?: string;
+          created_at?: string;
+          currency?: string;
+          entitlement_status?: Database["public"]["Enums"]["entitlement_status"];
+          id?: string;
+          pack_id?: string;
+          pack_title_snapshot?: string;
+          paid_at?: string | null;
+          payment_status?: Database["public"]["Enums"]["payment_status"];
+          public_reference?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "purchases_pack_id_fkey";
+            columns: ["pack_id"];
+            isOneToOne: false;
+            referencedRelation: "packs";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       tags: {
         Row: {
           created_at: string;
@@ -648,13 +988,44 @@ export type Database = {
       [_ in never]: never;
     };
     Functions: {
-      [_ in never]: never;
+      create_processing_purchase: {
+        Args: {
+          attempt_key: string;
+          buyer_email: string;
+          claim_expires_at: string;
+          claim_hash: string;
+          payment_provider: string;
+          reference: string;
+          selected_pack_id: string;
+        };
+        Returns: {
+          amount_minor: number;
+          currency: string;
+          pack_title: string;
+          payment_attempt_id: string;
+          purchase_id: string;
+        }[];
+      };
     };
     Enums: {
+      access_token_status: "ACTIVE" | "ROTATED" | "REVOKED";
       admin_role: "ADMIN";
       content_status: "ACTIVE" | "ARCHIVED";
+      email_delivery_status: "QUEUED" | "SENT" | "DELIVERED" | "FAILED";
+      email_purpose: "ACCESS_LINK";
+      entitlement_source: "PACK_SNAPSHOT" | "FREE_UPDATE";
+      entitlement_status: "ACTIVE" | "SUSPENDED";
       orientation: "PORTRAIT" | "LANDSCAPE" | "SQUARE";
       pack_status: "DRAFT" | "PUBLISHED" | "UNLISTED" | "ARCHIVED";
+      payment_attempt_status:
+        | "CREATED"
+        | "PROCESSING"
+        | "SUCCEEDED"
+        | "FAILED"
+        | "CANCELLED"
+        | "EXPIRED";
+      payment_event_status: "RECEIVED" | "PROCESSED" | "IGNORED" | "FAILED";
+      payment_status: "PROCESSING" | "PAID" | "FAILED" | "CANCELLED";
       prompt_access_type: "FREE" | "PACK_ONLY";
       prompt_status:
         "DRAFT" | "PUBLISHED" | "UNPUBLISHED" | "UNLISTED" | "ARCHIVED";
@@ -785,10 +1156,25 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
+      access_token_status: ["ACTIVE", "ROTATED", "REVOKED"],
       admin_role: ["ADMIN"],
       content_status: ["ACTIVE", "ARCHIVED"],
+      email_delivery_status: ["QUEUED", "SENT", "DELIVERED", "FAILED"],
+      email_purpose: ["ACCESS_LINK"],
+      entitlement_source: ["PACK_SNAPSHOT", "FREE_UPDATE"],
+      entitlement_status: ["ACTIVE", "SUSPENDED"],
       orientation: ["PORTRAIT", "LANDSCAPE", "SQUARE"],
       pack_status: ["DRAFT", "PUBLISHED", "UNLISTED", "ARCHIVED"],
+      payment_attempt_status: [
+        "CREATED",
+        "PROCESSING",
+        "SUCCEEDED",
+        "FAILED",
+        "CANCELLED",
+        "EXPIRED",
+      ],
+      payment_event_status: ["RECEIVED", "PROCESSED", "IGNORED", "FAILED"],
+      payment_status: ["PROCESSING", "PAID", "FAILED", "CANCELLED"],
       prompt_access_type: ["FREE", "PACK_ONLY"],
       prompt_status: [
         "DRAFT",

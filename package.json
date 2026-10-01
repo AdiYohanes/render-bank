@@ -13,7 +13,7 @@
 		"smoke": "node scripts/smoke.mjs",
 		"db:start": "supabase start",
 		"db:reset": "supabase db reset",
-		"db:test": "node --test supabase/tests/*.test.mjs",
+		"db:test": "node --test --test-concurrency=1 supabase/tests/*.test.mjs",
 		"db:types": "node scripts/db-types.mjs",
 		"db:types:check": "node scripts/db-types.mjs --check"
 	},
