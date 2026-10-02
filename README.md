@@ -30,6 +30,16 @@ Open [http://localhost:3000](http://localhost:3000). `npm run db:reset` destroys
 
 Copy `.env.example` to `.env.local` and replace its placeholders with the local API URL, publishable key, and secret key from `npm exec -- supabase status`. Only `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` may be exposed to the browser; `SUPABASE_SECRET_KEY` is server-only. The current status shell does not need credentials until a Supabase client is used. Missing or malformed configuration fails at client creation. Do not commit `.env.local` or reuse local keys in a deployed environment.
 
+## Foundation delivery gate
+
+Before Phase 2 Public Discovery, run the single fail-fast gate from a checkout with Node.js 22+, npm, and Docker Desktop running:
+
+```bash
+npm run foundation:check
+```
+
+The command runs `npm ci` from the committed lockfile, typecheck and non-mutating lint, checks Docker and local Supabase, resets the **local** database and Demo Content, runs real-role policy/Storage/RPC tests, checks generated database types without rewriting them, then runs all application tests, a production build, a public-output trusted-key scan, and the production root smoke check. It starts local Supabase when needed; no Dashboard changes, remote project, `.env.local`, payment provider credentials, or hand-created schema are required. The build receives local public URL/publishable values from the CLI and deliberately omits the Supabase, payment, email, and session server credentials regardless of environment-variable casing (including Windows); it does not log local keys. Remove `.env`, `.env.local`, `.env.production`, and `.env.production.local` before running the gate: Next.js could otherwise override public build values or load a trusted key. A clean checkout needs none of these files. Each stage is labeled; if one fails, address its error and rerun the command. `npm ci` and Supabase reset can change local dependencies and **local database rows** respectively, but the gate compares Git status before and after to catch file changes. Stop services with `npm exec -- supabase stop` when finished.
+
 Seed rows are **Demo Content**, not tested launch inventory. Seed preview rows contain metadata but no image bytes, so those example URLs remain unresolved until real validated artwork is uploaded and associated. This foundation does not expose a discovery page or production-ready Prompts.
 
 ## Admin provisioning and preview artwork
