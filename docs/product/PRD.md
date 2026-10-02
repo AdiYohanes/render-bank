@@ -1028,33 +1028,7 @@ sort_order
 
 # 31. Purchase Model
 
-```text
-id
-
-buyer_email
-
-product_type
-
-product_id
-
-amount
-
-currency
-
-payment_provider
-
-payment_reference
-
-payment_status
-
-access_token
-
-created_at
-```
-
-Email harus disimpan dalam bentuk normalized.
-
-Payment credentials sensitif tidak boleh disimpan.
+Checkout membuat purchase berstatus `PROCESSING` dengan email Buyer yang dinormalisasi, Prompt Pack yang dipilih, dan harga/currency authoritative dalam satuan minor (`amount_minor`). Payment attempt menyimpan provider dan referensi provider; purchase menyimpan referensi publik yang opaque, bukan credential. Setelah payment diverifikasi, purchase yang sama berubah menjadi `PAID` dan mendapatkan snapshot entitlement. Secure access token disimpan terpisah hanya sebagai hash; raw token dan payment credentials tidak disimpan.
 
 ---
 
@@ -1643,7 +1617,7 @@ MVP dianggap siap jika:
 12. Pack memiliki landing page.
 13. User dapat melakukan checkout tanpa account.
 14. User dapat membayar menggunakan payment provider.
-15. Payment success membuat purchase record.
+15. Payment success yang diverifikasi melengkapi purchase `PROCESSING` yang dibuat saat checkout.
 16. Buyer mendapatkan secure access link.
 17. Premium content hanya dapat dibuka dengan authorization yang valid.
 18. Core analytics berjalan.

@@ -927,7 +927,7 @@ Generated database types must match the migrated schema with no uncommitted drif
 - public roles cannot execute payment-completion RPC.
 - the trusted backend can execute the RPC.
 - duplicate events create one paid transition, one entitlement snapshot, and one token row.
-- amount/currency/product mismatch rolls back the transaction.
+- provider/event/attempt/product/amount/currency/verified-status mismatches and invalid or regressive states roll back the transaction.
 - changing pack membership after purchase does not alter existing entitlement.
 
 ## 16.3 Application Integration Tests
@@ -996,12 +996,12 @@ Before release, verify critical routes on mobile and desktop for:
 
 ## Phase 4 — Commerce
 
-- Implement pack detail, checkout claim, payment adapter, provider checkout, verified webhook, atomic completion RPC, and payment status UI.
+- Implement pack detail, checkout claim, payment adapter, provider checkout, verified webhook integration with the foundation's atomic completion RPC, and payment status UI.
 - Verify idempotency and mismatch rollback before connecting live credentials.
 
 ## Phase 5 — Secure Access
 
-- Implement entitlement snapshot, token generation/hash, email delivery, token exchange, buyer session, `/access`, and per-request premium authorization.
+- Use the foundation's entitlement snapshot and hash-only token persistence to implement raw-token generation, email delivery, token exchange, buyer session, `/access`, and per-request premium authorization.
 - Add rotate, revoke, suspend, and replacement-link admin operations.
 
 ## Phase 6 — Launch Hardening

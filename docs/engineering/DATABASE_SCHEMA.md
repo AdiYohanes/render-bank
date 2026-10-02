@@ -1511,8 +1511,8 @@ In one transaction, the function:
 
 1. Finds the attempt by `(provider, provider_attempt_id)` and locks it and its purchase; rejects missing or conflicting references.
 2. Locks the owning Pack row. Every `pack_prompts` insert/update/delete acquires the same Pack-row lock before changing membership, so the snapshot is serial with Pack edits.
-3. Resolves `(provider, provider_event_id)` idempotently. An existing event is a no-op **only** if its attempt matches and it is already `PROCESSED` for a `PAID` purchase; return the same purchase ID with `newly_completed = false`. A reused event ID for another attempt or an unfinished event is an error.
-4. On a new event, compares provider, verified Pack ID, amount, and currency to the stored attempt/purchase and rejects any mismatch. Accepts only a `PROCESSING` purchase and a `CREATED` or `PROCESSING` attempt; `FAILED`, `CANCELLED`, `EXPIRED`, a previously `PAID` purchase under a new event, or any regressive state is rejected.
+3. Compares the verified Pack ID, amount, and currency to the stored attempt/purchase before resolving `(provider, provider_event_id)` idempotently. An existing event is a no-op **only** if its attempt and event type match, it is already `PROCESSED`, the attempt is `SUCCEEDED`, and the purchase is `PAID`; return the same purchase ID with `newly_completed = false`. A fresh candidate token hash on replay is discarded. Altered verified facts, a reused event ID for another attempt, or an unfinished event are errors.
+4. On a new event, accepts only a `PROCESSING` purchase and a `CREATED` or `PROCESSING` attempt; `FAILED`, `CANCELLED`, `EXPIRED`, a previously `PAID` purchase under a new event, or any regressive state is rejected.
 5. Requires `p_verified_status = SUCCEEDED`, inserts the unique event with `p_event_type`, changes attempt to `SUCCEEDED` and purchase to `PAID` with `paid_at`, copies current `pack_prompts` into `purchase_entitlements` once, inserts the candidate hash as the sole active token, and marks the event `PROCESSED`.
 6. Returns `(purchase.id, true)` only after the transaction succeeds. Any failure rolls back event, states, entitlements, and token together.
 
