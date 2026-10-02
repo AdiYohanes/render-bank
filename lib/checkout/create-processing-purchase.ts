@@ -8,6 +8,8 @@ export async function createProcessingPurchase(input: {
   buyerEmail: string;
   packId: string;
   provider: string;
+  attemptKey: string;
+  checkoutClaim: string;
 }) {
   return createProcessingPurchaseWithClient(
     createTrustedSupabaseClient(),
