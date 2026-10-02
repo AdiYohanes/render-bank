@@ -15,7 +15,7 @@ const generated = execFileSync(process.execPath, [bin, "gen", "types", "typescri
 const output = (await format(generated, { parser: "typescript" })).replace(/\r\n/g, "\n");
 
 if (process.argv.includes("--check")) {
-  assert.equal(readFileSync(file, "utf8"), output, "Database types drifted; run npm run db:types");
+  assert.equal(readFileSync(file, "utf8").replace(/\r\n/g, "\n"), output, "Database types drifted; run npm run db:types");
 } else {
   writeFileSync(file, output);
 }
