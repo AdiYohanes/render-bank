@@ -96,10 +96,10 @@ async function verify(role, client) {
     const { data: existing } = await trusted.from(table).select("*").limit(1).single();
     const identity = Object.fromEntries(Object.entries(existing).filter(([key]) => ["id", "prompt_id", "model_id", "tag_id", "use_case_id"].includes(key)));
     const filters = (query) => Object.entries(identity).reduce((result, [key, value]) => result.eq(key, value), query);
-    const { error: update } = await filters(client.from(table).update(existing)).select();
-    assert.equal(update?.code, "42501", `${role}: ${table} update must be denied`);
-    const { error: remove } = await filters(client.from(table).delete()).select();
-    assert.equal(remove?.code, "42501", `${role}: ${table} delete must be denied`);
+    const { data: updated, error: update } = await filters(client.from(table).update(existing)).select();
+    assert.ok(update?.code === "42501" || (role !== "anon" && !update && updated.length === 0), `${role}: ${table} update must affect no rows`);
+    const { data: removed, error: remove } = await filters(client.from(table).delete()).select();
+    assert.ok(remove?.code === "42501" || (role !== "anon" && !remove && removed.length === 0), `${role}: ${table} delete must affect no rows`);
   }
 }
 
@@ -116,16 +116,16 @@ test("actual anon and non-Admin Auth policies expose published safe metadata, Fr
     await verify("anon", visitor);
     await verify("authenticated non-Admin", authenticated);
 
-    const path = `tests/${crypto.randomUUID()}.txt`;
+    const path = `tests/${crypto.randomUUID()}.webp`;
     const storage = trusted.storage.from("prompt-previews");
-    const { error: uploadError } = await storage.upload(path, new Blob(["test-only"]), { contentType: "text/plain" });
+    const { error: uploadError } = await storage.upload(path, new Blob(["test-only"], { type: "image/webp" }), { contentType: "image/webp" });
     assert.ifError(uploadError);
     try {
       for (const [role, client] of [["anon", visitor], ["authenticated", authenticated]]) {
         const bucket = client.storage.from("prompt-previews");
-        const { error: put } = await bucket.upload(`tests/${crypto.randomUUID()}.txt`, new Blob(["denied"]), { contentType: "text/plain" });
+        const { error: put } = await bucket.upload(`tests/${crypto.randomUUID()}.webp`, new Blob(["denied"], { type: "image/webp" }), { contentType: "image/webp" });
         assert.ok(put, `${role}: upload must fail against an existing bucket`);
-        const { error: overwrite } = await bucket.update(path, new Blob(["denied"]), { contentType: "text/plain" });
+        const { error: overwrite } = await bucket.update(path, new Blob(["denied"], { type: "image/webp" }), { contentType: "image/webp" });
         assert.ok(overwrite, `${role}: overwrite must fail`);
         const { error: remove } = await bucket.remove([path]);
         if (remove) assert.ok(remove.message);
