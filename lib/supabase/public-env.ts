@@ -14,6 +14,14 @@ export function publicSupabaseEnv(
   if (!key || key.startsWith("replace-with-") || key.startsWith("sb_secret_")) {
     throw new Error("NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY is required");
   }
+  if (key.split(".").length === 3) {
+    try {
+      const payload = JSON.parse(atob(key.split(".")[1].replace(/-/g, "+").replace(/_/g, "/")));
+      if (payload.role !== "anon") throw new Error();
+    } catch {
+      throw new Error("NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY must not contain a trusted JWT");
+    }
+  }
 
   return { url, key };
 }

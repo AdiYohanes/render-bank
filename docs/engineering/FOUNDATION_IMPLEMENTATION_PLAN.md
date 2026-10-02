@@ -1,7 +1,7 @@
 # RenderBank Foundation Implementation Plan
 
 **Parent:** [#1 — Establish the RenderBank MVP foundation](https://github.com/AdiYohanes/render-bank/issues/1)
-**Status:** Slice 0 contract proposed locally; #5 upload-policy wording needs review; implementation issues #2–#8 are open
+**Status:** Slice 0 reviewed; #2–#8 accepted, merged, and closed; parent #1 final contract audit in progress
 **Review unit:** One existing GitHub sub-issue and one PR per implementation slice
 
 ## Context
@@ -121,11 +121,11 @@ The owning child issue carries each parent #1 story exactly once. A slice may te
 
 ## Parent issue #1 Definition of Done
 
-- [ ] Slice 0 contract is reviewed; existing #2–#8 are merged and linked from #1.
-- [ ] Every original story has the single owner listed above.
-- [ ] A locked clean install and local Supabase reset recreate the protected data model, policies, Storage contract, seed, and RPC with zero generated-type drift.
-- [ ] Real-role policy tests prove public Free reads, safe Premium metadata, protected-data and mutation denial, and active-Admin boundaries.
-- [ ] Transaction tests prove trusted-only atomic completion, duplicate idempotency, mismatch rollback, and durable entitlement snapshots.
-- [ ] Three typed Supabase clients remain isolated; configuration fails clearly and no trusted secret enters a client bundle.
-- [ ] The accessible light-only root identifies RenderBank without starter branding or Phase 2 UI.
+- [x] Slice 0 contract is reviewed; existing #2–#8 are merged and linked from #1.
+- [x] Every original story has the single owner listed above.
+- [x] A locked clean install and local Supabase reset recreate the protected data model, policies, Storage contract, seed, and RPC with zero generated-type drift.
+- [x] Real-role policy tests prove public Free reads, safe Premium metadata, protected-data and mutation denial, and active-Admin boundaries.
+- [x] Transaction tests prove trusted-only atomic completion, duplicate idempotency, mismatch rollback, and durable entitlement snapshots.
+- [x] Three typed Supabase clients remain isolated; configuration fails clearly and no trusted secret enters a client bundle.
+- [x] The accessible light-only root identifies RenderBank without starter branding or Phase 2 UI.
 - [ ] The one-command gate passes from clean checkout without changing tracked files.

@@ -3,7 +3,7 @@
 **Document:** Database Schema  
 **Product:** RenderBank  
 **Version:** 0.3
-**Status:** Proposed MVP Baseline — Slice 0 review pending
+**Status:** Reviewed MVP baseline; versioned SQL migrations are the executable schema source of truth
 **Target Database:** Supabase PostgreSQL  
 **Architecture Style:** Server-authoritative modular monolith  
 **Depends On:** `docs/product/PRD.md`, `docs/product/SITEMAP.md`, `docs/experience/USER_FLOWS.md`, `docs/experience/SCREEN_REQUIREMENTS.md`, `docs/design/DESIGN.md`, `docs/design/HIGH_FIDELITY_UI.md`, `docs/engineering/TECHNICAL_ARCHITECTURE.md`
