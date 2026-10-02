@@ -974,7 +974,7 @@ payment_attempts
 - purchase_id uuid NOT NULL
 - provider text NOT NULL
 - provider_attempt_id text nullable
-- idempotency_key text UNIQUE NOT NULL
+- idempotency_key text UNIQUE NOT NULL CHECK (length(idempotency_key) >= 16)
 - checkout_claim_hash bytea UNIQUE NOT NULL CHECK (octet_length(checkout_claim_hash) = 32)
 - amount_minor bigint NOT NULL CHECK (amount_minor >= 0)
 - currency text NOT NULL CHECK (currency ~ '^[A-Z]{3}$')
@@ -982,6 +982,7 @@ payment_attempts
 - expires_at timestamptz nullable
 - created_at
 - updated_at
+- UNIQUE(id, provider) for payment-event provider consistency
 ```
 
 Relation:
@@ -998,7 +999,7 @@ ON payment_attempts (provider, provider_attempt_id)
 WHERE provider_attempt_id IS NOT NULL;
 ```
 
-The checkout claim is generated in trusted server memory, stored only as a hash, and never included in the payment-completion RPC. Server always compares attempt amount/currency with authoritative purchase data. Attempt amount, currency, provider, and purchase association are immutable after creation. A verified completion accepts an attempt in `CREATED` or `PROCESSING`, transitions it to `SUCCEEDED`, and rejects `FAILED`, `CANCELLED`, `EXPIRED`, or an already-succeeded attempt for a different event.
+The checkout claim is generated in trusted server memory, stored only as a hash, and never included in the payment-completion RPC. The trusted caller keeps one random attempt key and raw checkout claim stable for safe retries (including the initial response); a retry with the same key and matching terms returns the existing purchase/attempt and original claim expiry, while a conflicting or expired retry fails. The database stores the attempt key, never the raw claim; public reference is derived from both and is not an access credential. Server always compares attempt amount/currency with authoritative purchase data. Attempt amount, currency, provider, and purchase association are immutable after creation. A verified completion accepts an attempt in `CREATED` or `PROCESSING`, transitions it to `SUCCEEDED`, and rejects `FAILED`, `CANCELLED`, `EXPIRED`, or an already-succeeded attempt for a different event.
 
 ---
 
@@ -1025,10 +1026,10 @@ Constraints and relation:
 
 ```text
 UNIQUE(provider, provider_event_id)
-payment_attempt_id → payment_attempts.id ON DELETE RESTRICT
+(payment_attempt_id, provider) → payment_attempts(id, provider) ON DELETE RESTRICT
 ```
 
-The purchase is derived through `payment_attempts.purchase_id`; it is not duplicated on the event row. When an event resolves to an attempt, its provider must match `payment_attempts.provider` before any mutation.
+The purchase is derived through `payment_attempts.purchase_id`; it is not duplicated on the event row. The composite foreign key enforces that an event provider matches `payment_attempts.provider` before any mutation. `PROCESSED` requires `processed_at`, and an unfinished event cannot carry it.
 
 Rules:
 
@@ -1072,7 +1073,7 @@ UNIQUE(purchase_id, prompt_id)
 
 Creation flow: a verified, normalized payment event calls `complete_paid_purchase` (section 39). The function locks the attempt, purchase, and owning pack; snapshots current `pack_prompts` into this table exactly once; and inserts the supplied candidate access-token hash only when newly paid. A duplicate event never changes this snapshot or creates another token.
 
-Authorization MUST query this snapshot rather than current `pack_prompts`.
+Authorization MUST query this snapshot rather than current `pack_prompts`. Snapshot identity (`id`, `purchase_id`, `prompt_id`, `source`, `granted_at`) cannot be updated, and entitlement rows cannot be deleted; `revoked_at` may change without erasing historical membership.
 
 ---
 
@@ -1102,7 +1103,7 @@ purchase_id → purchases.id ON DELETE RESTRICT
   → access_tokens(id, purchase_id)
 ```
 
-The composite self-reference requires a candidate key on `access_tokens(id, purchase_id)` and prevents rotation lineage from crossing purchases.
+The composite self-reference requires a candidate key on `access_tokens(id, purchase_id)` and prevents rotation lineage from crossing purchases. An `ACTIVE` token has no `revoked_at`; a `ROTATED` or `REVOKED` token has a revocation timestamp.
 
 Required partial unique index:
 
@@ -1166,7 +1167,7 @@ purchase_id → purchases.id ON DELETE RESTRICT
 
 Cookie contains raw random session material.
 
-Database contains only its hash.
+Database contains only its hash. `expires_at` must be later than `created_at`.
 
 Session is valid when:
 
@@ -1211,6 +1212,8 @@ Relation:
 ```text
 purchase_id → purchases.id ON DELETE RESTRICT
 ```
+
+`SENT` requires `sent_at`, `DELIVERED` requires both `sent_at` and `delivered_at`, and `FAILED` requires `failed_at`; only a failed delivery may carry `failed_at`. A failure after sending may retain `sent_at`.
 
 No raw access token should be persisted inside delivery logs.
 
@@ -1380,7 +1383,7 @@ pack_slug_redirects.pack_id → packs.id ON DELETE RESTRICT
 
 purchases.pack_id → packs.id ON DELETE RESTRICT
 payment_attempts.purchase_id → purchases.id ON DELETE RESTRICT
-payment_events.payment_attempt_id → payment_attempts.id ON DELETE RESTRICT
+payment_events(payment_attempt_id, provider) → payment_attempts(id, provider) ON DELETE RESTRICT
 purchase_entitlements.purchase_id → purchases.id ON DELETE RESTRICT
 purchase_entitlements.prompt_id → prompts.id ON DELETE RESTRICT
 access_tokens.purchase_id → purchases.id ON DELETE RESTRICT
