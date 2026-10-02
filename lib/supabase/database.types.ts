@@ -114,6 +114,121 @@ export type Database = {
         };
         Relationships: [];
       };
+      pack_prompts: {
+        Row: {
+          created_at: string;
+          pack_id: string;
+          prompt_id: string;
+          sort_order: number;
+        };
+        Insert: {
+          created_at?: string;
+          pack_id: string;
+          prompt_id: string;
+          sort_order?: number;
+        };
+        Update: {
+          created_at?: string;
+          pack_id?: string;
+          prompt_id?: string;
+          sort_order?: number;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "pack_prompts_pack_id_fkey";
+            columns: ["pack_id"];
+            isOneToOne: false;
+            referencedRelation: "packs";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "pack_prompts_prompt_id_fkey";
+            columns: ["prompt_id"];
+            isOneToOne: false;
+            referencedRelation: "prompts";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      pack_slug_redirects: {
+        Row: {
+          created_at: string;
+          id: string;
+          old_slug: string;
+          pack_id: string;
+        };
+        Insert: {
+          created_at?: string;
+          id?: string;
+          old_slug: string;
+          pack_id: string;
+        };
+        Update: {
+          created_at?: string;
+          id?: string;
+          old_slug?: string;
+          pack_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "pack_slug_redirects_pack_id_fkey";
+            columns: ["pack_id"];
+            isOneToOne: false;
+            referencedRelation: "packs";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      packs: {
+        Row: {
+          cover_asset_id: string | null;
+          created_at: string;
+          currency: string;
+          description: string;
+          id: string;
+          price_minor: number;
+          published_at: string | null;
+          slug: string;
+          status: Database["public"]["Enums"]["pack_status"];
+          title: string;
+          updated_at: string;
+        };
+        Insert: {
+          cover_asset_id?: string | null;
+          created_at?: string;
+          currency: string;
+          description: string;
+          id?: string;
+          price_minor: number;
+          published_at?: string | null;
+          slug: string;
+          status?: Database["public"]["Enums"]["pack_status"];
+          title: string;
+          updated_at?: string;
+        };
+        Update: {
+          cover_asset_id?: string | null;
+          created_at?: string;
+          currency?: string;
+          description?: string;
+          id?: string;
+          price_minor?: number;
+          published_at?: string | null;
+          slug?: string;
+          status?: Database["public"]["Enums"]["pack_status"];
+          title?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "packs_cover_asset_id_fkey";
+            columns: ["cover_asset_id"];
+            isOneToOne: false;
+            referencedRelation: "media_assets";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       prompt_contents: {
         Row: {
           created_at: string;
@@ -229,6 +344,35 @@ export type Database = {
           },
           {
             foreignKeyName: "prompt_models_prompt_id_fkey";
+            columns: ["prompt_id"];
+            isOneToOne: false;
+            referencedRelation: "prompts";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      prompt_slug_redirects: {
+        Row: {
+          created_at: string;
+          id: string;
+          old_slug: string;
+          prompt_id: string;
+        };
+        Insert: {
+          created_at?: string;
+          id?: string;
+          old_slug: string;
+          prompt_id: string;
+        };
+        Update: {
+          created_at?: string;
+          id?: string;
+          old_slug?: string;
+          prompt_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "prompt_slug_redirects_prompt_id_fkey";
             columns: ["prompt_id"];
             isOneToOne: false;
             referencedRelation: "prompts";
@@ -415,6 +559,13 @@ export type Database = {
             referencedRelation: "categories";
             referencedColumns: ["id"];
           },
+          {
+            foreignKeyName: "prompts_primary_sales_pack_id_fkey";
+            columns: ["primary_sales_pack_id"];
+            isOneToOne: false;
+            referencedRelation: "packs";
+            referencedColumns: ["id"];
+          },
         ];
       };
       tags: {
@@ -475,6 +626,7 @@ export type Database = {
     Enums: {
       content_status: "ACTIVE" | "ARCHIVED";
       orientation: "PORTRAIT" | "LANDSCAPE" | "SQUARE";
+      pack_status: "DRAFT" | "PUBLISHED" | "UNLISTED" | "ARCHIVED";
       prompt_access_type: "FREE" | "PACK_ONLY";
       prompt_status:
         "DRAFT" | "PUBLISHED" | "UNPUBLISHED" | "UNLISTED" | "ARCHIVED";
@@ -607,6 +759,7 @@ export const Constants = {
     Enums: {
       content_status: ["ACTIVE", "ARCHIVED"],
       orientation: ["PORTRAIT", "LANDSCAPE", "SQUARE"],
+      pack_status: ["DRAFT", "PUBLISHED", "UNLISTED", "ARCHIVED"],
       prompt_access_type: ["FREE", "PACK_ONLY"],
       prompt_status: [
         "DRAFT",
