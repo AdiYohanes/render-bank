@@ -48,6 +48,20 @@ test("trusted checkout initialization snapshots published Prompt Pack terms atom
   assert.match(rows, /\n1\n/);
 });
 
+test("retrying one checkout key retains one purchase and attempt, and conflicting reuse fails", () => {
+  const rows = sql(`${setupAttempt}
+    select (r.purchase_id = b.id) || '|' || (r.payment_attempt_id = a.id) || '|' || (r.saved_claim_expires_at = a.expires_at)
+      from public.create_processing_purchase('buyer@example.invalid','${pack}','demo',repeat('r',32),repeat('k',32),decode(repeat('ab',32),'hex'),now()+interval '15 minutes') r
+      cross join buyer_fixture b cross join public.payment_attempts a where a.id in (select id from attempt_fixture);
+    select count(*) || '|' || count(distinct a.id) || '|' || count(distinct a.purchase_id)
+      from public.payment_attempts a where a.idempotency_key = repeat('k',32);
+    select count(*) from public.purchases;`);
+  assert.match(rows, /true\|true\|true\n1\|1\|1\n1\n/);
+  rejects(`${setupAttempt} ${init("other@example.invalid")}`, /Checkout idempotency key conflict/);
+  rejects(`${setupAttempt} update public.payment_attempts set expires_at = now() - interval '1 minute' where id in (select id from attempt_fixture);
+    ${init()}`, /Checkout claim expired/);
+});
+
 test("purchase and attempt terms cannot be changed after checkout", () => {
   rejects(`${setup} update public.purchases set amount_minor = 1 where id in (select id from buyer_fixture);`, /Purchase terms are immutable/);
   rejects(`${setupAttempt} update public.payment_attempts set currency = 'USD' where id in (select id from attempt_fixture);`, /Payment attempt terms are immutable/);
@@ -64,7 +78,7 @@ test("invalid Prompt Pack or duplicate claim leaves no processing purchase", () 
 
 test("hash-only credentials, provider identities and entitlement pairs remain unique", () => {
   rejects(`${setupAttempt} insert into public.payment_attempts (purchase_id,provider,idempotency_key,checkout_claim_hash,amount_minor,currency)
-    select id,'demo','another-key',decode(repeat('ab',32),'hex'),59000,'IDR' from buyer_fixture;`, /duplicate key value/);
+    select id,'demo',repeat('x',32),decode(repeat('ab',32),'hex'),59000,'IDR' from buyer_fixture;`, /duplicate key value/);
   rejects(`${setup} insert into public.access_tokens(purchase_id,token_hash) select id,decode('ab','hex') from buyer_fixture;`, /violates check constraint/);
   rejects(`${setup} insert into public.access_sessions(purchase_id,session_hash,expires_at) select id,decode('ab','hex'),now()+interval '1 hour' from buyer_fixture;`, /violates check constraint/);
   rejects(`${setup} insert into public.purchase_entitlements(purchase_id,prompt_id) select id,'${prompt}' from buyer_fixture;
@@ -74,7 +88,7 @@ test("hash-only credentials, provider identities and entitlement pairs remain un
     insert into public.payment_events(provider,provider_event_id,payment_attempt_id,event_type)
     select 'demo','event-one',id,'success' from attempt_fixture;`, /duplicate key value/);
   rejects(`${setupAttempt} insert into public.payment_attempts(purchase_id,provider,provider_attempt_id,idempotency_key,checkout_claim_hash,amount_minor,currency)
-    select purchase_id,'demo','provider-one','another-key',decode(repeat('bc',32),'hex'),59000,'IDR' from attempt_fixture;
+    select purchase_id,'demo','provider-one',repeat('x',32),decode(repeat('bc',32),'hex'),59000,'IDR' from attempt_fixture;
     update public.payment_attempts set provider_attempt_id = 'provider-one' where id in (select id from attempt_fixture);`, /duplicate key value/);
   const columns = sql(`select table_name || ':' || column_name from information_schema.columns where table_schema = 'public'
     and table_name in ('access_tokens','access_sessions','payment_attempts') and column_name like '%token%' or table_schema = 'public' and table_name in ('access_tokens','access_sessions','payment_attempts') and column_name like '%session%' or table_schema = 'public' and table_name in ('access_tokens','access_sessions','payment_attempts') and column_name like '%claim%' order by 1;`);
@@ -82,6 +96,24 @@ test("hash-only credentials, provider identities and entitlement pairs remain un
   assert.match(columns, /access_sessions:session_hash/);
   assert.match(columns, /payment_attempts:checkout_claim_hash/);
   assert.doesNotMatch(columns, /:token$|:session$|:checkout_claim$/m);
+});
+
+test("payment events use their attempt provider and lifecycle timestamps agree with status", () => {
+  rejects(`${setupAttempt} insert into public.payment_events(provider,provider_event_id,payment_attempt_id,event_type)
+    select 'other','event-one',id,'success' from attempt_fixture;`, /payment_events_payment_attempt_id_provider_fkey/);
+  rejects(`${setupAttempt} insert into public.payment_events(provider,provider_event_id,payment_attempt_id,event_type,processing_status)
+    select 'demo','event-one',id,'success','PROCESSED' from attempt_fixture;`, /payment_events_processed_at_check/);
+  rejects(`${setup} insert into public.access_tokens(purchase_id,token_hash,revoked_at)
+    select id,decode(repeat('ac',32),'hex'),now() from buyer_fixture;`, /access_tokens_revoked_at_check/);
+  rejects(`${setup} insert into public.access_sessions(purchase_id,session_hash,expires_at)
+    select id,decode(repeat('ac',32),'hex'),now() from buyer_fixture;`, /access_sessions_expiry_check/);
+  rejects(`${setup} insert into public.email_deliveries(purchase_id,recipient_email_normalized,provider,status)
+    select id,'buyer@example.invalid','demo','FAILED' from buyer_fixture;`, /email_deliveries_status_at_check/);
+  rejects(`${setup} insert into public.email_deliveries(purchase_id,recipient_email_normalized,provider,status)
+    select id,'buyer@example.invalid','demo','DELIVERED' from buyer_fixture;`, /email_deliveries_status_at_check/);
+  assert.match(sql(`${setup} insert into public.email_deliveries(purchase_id,recipient_email_normalized,provider,status,failed_at)
+    select id,'buyer@example.invalid','demo','FAILED',now() from buyer_fixture;
+    select count(*) from public.email_deliveries where status = 'FAILED';`), /\n1\n/);
 });
 
 test("entitlement snapshot identity cannot change or be deleted", () => {

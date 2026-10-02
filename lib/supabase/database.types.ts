@@ -493,11 +493,11 @@ export type Database = {
         };
         Relationships: [
           {
-            foreignKeyName: "payment_events_payment_attempt_id_fkey";
-            columns: ["payment_attempt_id"];
+            foreignKeyName: "payment_events_payment_attempt_id_provider_fkey";
+            columns: ["payment_attempt_id", "provider"];
             isOneToOne: false;
             referencedRelation: "payment_attempts";
-            referencedColumns: ["id"];
+            referencedColumns: ["id", "provider"];
           },
         ];
       };
@@ -1004,6 +1004,7 @@ export type Database = {
           pack_title: string;
           payment_attempt_id: string;
           purchase_id: string;
+          saved_claim_expires_at: string;
         }[];
       };
     };
