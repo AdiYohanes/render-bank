@@ -3,6 +3,8 @@ import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 
+import { buildEnvironment } from "./build-environment.mjs";
+
 const npm = process.env.npm_execpath;
 assert.ok(npm, "Run the gate with npm run foundation:check");
 const npmRun = (args, options) => run(process.execPath, [npm, ...args], options);
@@ -58,21 +60,13 @@ try {
     if (name === "Local configuration") status = result;
   }
 
-  const env = {
-    ...process.env,
-    NEXT_PUBLIC_SUPABASE_URL: status.API_URL,
-    NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: status.PUBLISHABLE_KEY,
-  };
-  for (const key of ["SUPABASE_SECRET_KEY", "PAYMENT_SECRET", "PAYMENT_WEBHOOK_SECRET", "EMAIL_PROVIDER_SECRET", "ACCESS_SESSION_SECRET"]) {
-    delete env[key];
-  }
+  const { env, secrets } = buildEnvironment(process.env, status);
   stage = "Production build without trusted keys";
   console.log(`\n[foundation] ${stage}`);
   npmRun(["run", "build"], { env });
 
   stage = "Public output secret check";
   console.log(`\n[foundation] ${stage}`);
-  const secrets = [status.SECRET_KEY, status.SERVICE_ROLE_KEY, ...["SUPABASE_SECRET_KEY", "PAYMENT_SECRET", "PAYMENT_WEBHOOK_SECRET", "EMAIL_PROVIDER_SECRET", "ACCESS_SESSION_SECRET"].map((key) => process.env[key])].filter(Boolean);
   assertNoPublicSecrets(join(".next", "static"), secrets);
   assertNoPublicSecrets(join(".next", "server", "app"), secrets);
 
