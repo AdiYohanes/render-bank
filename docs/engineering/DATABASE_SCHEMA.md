@@ -1808,7 +1808,7 @@ The exact numbering may change during implementation.
 
 # 49. Initial Seed Data
 
-Local `supabase/seed.sql` contains deterministic, clearly labeled **Demo Content** for policy and feature development: reference categories/models/tags/use cases, at least one published Free Prompt with content and variables, one published Pack-only Prompt in a published Pack, approved preview media metadata, and representative non-public lifecycle records. Demo content is not curated/tested launch inventory: do not assign `TESTED` model relations or `last_tested_at` without real validation. Production launch content is provisioned separately.
+Local `supabase/seed.sql` grows with the foundation slices: #3 adds deterministic, clearly labeled **Demo Content** for reference categories/models/tags/use cases, a published Free Prompt with content and variables, preview media metadata, and non-public lifecycle records; #4 adds a published Pack-only Prompt and published Pack. Demo content is not curated/tested launch inventory: do not assign `TESTED` model relations or `last_tested_at` without real validation. Production launch content is provisioned separately. Preview metadata alone does not imply that image bytes were uploaded.
 
 Do not seed fake purchases, raw or hashed access credentials, production Admin passwords, payment/provider secrets, or real Buyer data. Test-only purchase and token fixtures belong in isolated transactional tests, not reusable seed data. Admin Supabase Auth users are provisioned manually and linked to active `admin_profiles` rows.
 
