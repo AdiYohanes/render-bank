@@ -2031,9 +2031,9 @@ No historical pack-version table is necessary for MVP because `purchase_entitlem
 
 # 55. Implementation Handoff
 
-This proposed schema contract requires Slice 0 review before SQL migrations. Route/API contracts are added with the feature slice that consumes them rather than as speculative foundation scaffolding.
+Slice 0 review established this schema contract; versioned SQL migrations now own the executable schema. Route/API contracts belong to the feature slice that consumes them rather than speculative foundation scaffolding.
 
-After that review, the slices in [`FOUNDATION_IMPLEMENTATION_PLAN.md`](FOUNDATION_IMPLEMENTATION_PLAN.md) convert the contract into exact PostgreSQL/Supabase migrations including:
+The foundation slices in [`FOUNDATION_IMPLEMENTATION_PLAN.md`](FOUNDATION_IMPLEMENTATION_PLAN.md) implemented the contract as PostgreSQL/Supabase migrations including:
 
 - enum creation;
 - tables;
