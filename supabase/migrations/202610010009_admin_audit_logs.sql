@@ -4,9 +4,10 @@ create table public.admin_audit_logs (
   action text not null check (length(btrim(action)) > 0),
   entity_type text not null check (length(btrim(entity_type)) > 0),
   entity_id uuid,
-  reason text,
+  reason text check (reason is null or length(btrim(reason)) > 0),
   metadata jsonb not null default '{}'::jsonb check (jsonb_typeof(metadata) = 'object'),
-  created_at timestamptz not null default now()
+  created_at timestamptz not null default now(),
+  constraint suspension_requires_reason check (action <> 'ENTITLEMENT_SUSPENDED' or reason is not null)
 );
 create index admin_audit_logs_entity on public.admin_audit_logs(entity_type, entity_id, created_at desc);
 create index admin_audit_logs_actor on public.admin_audit_logs(actor_user_id, created_at desc);

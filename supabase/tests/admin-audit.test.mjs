@@ -52,6 +52,13 @@ test("audit history is trusted-only, append-only, and retains its actor", async 
   assert.ifError(insertError);
   assert.equal(row.actor_user_id, created.user.id);
   assert.deepEqual(row.metadata, { source: "test" });
+  for (const reason of [null, "   "]) {
+    assert.ok((await trusted.from("admin_audit_logs").insert({ actor_user_id: created.user.id,
+      action: "ENTITLEMENT_SUSPENDED", entity_type: "PURCHASE", reason })).error,
+    "suspension audit requires a nonblank reason");
+  }
+  assert.ifError((await trusted.from("admin_audit_logs").insert({ actor_user_id: created.user.id,
+    action: "ENTITLEMENT_SUSPENDED", entity_type: "PURCHASE", reason: "Verified administrative action" })).error);
   for (const actor of [visitor, admin]) {
     const { data, error } = await actor.from("admin_audit_logs").select("id").eq("id", row.id);
     assert.ok(error || data?.length === 0, "browser roles cannot read persisted audit history");

@@ -11,7 +11,7 @@ export function publicSupabaseEnv(
   if (!url || !/^https?:\/\//.test(url) || !URL.canParse(url)) {
     throw new Error("NEXT_PUBLIC_SUPABASE_URL must be a valid HTTP(S) URL");
   }
-  if (!key || key.startsWith("replace-with-") || key.startsWith("sb_secret_")) {
+  if (!key || key !== key.trim() || key.startsWith("replace-with-") || key.startsWith("sb_secret_")) {
     throw new Error("NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY is required");
   }
   if (key.split(".").length === 3) {
