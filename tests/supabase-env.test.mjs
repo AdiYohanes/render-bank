@@ -20,7 +20,14 @@ test("public configuration rejects missing and malformed values", () => {
   assert.throws(() => publicSupabaseEnv({}), /NEXT_PUBLIC_SUPABASE_URL/);
   assert.throws(() => publicSupabaseEnv({ NEXT_PUBLIC_SUPABASE_URL: "file:///secret" }), /NEXT_PUBLIC_SUPABASE_URL/);
   assert.throws(() => publicSupabaseEnv({ NEXT_PUBLIC_SUPABASE_URL: "https://example.test" }), /NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY/);
-  assert.throws(() => publicSupabaseEnv({ NEXT_PUBLIC_SUPABASE_URL: "https://example.test", NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: "sb_secret_do-not-expose" }), /NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY/);
+  for (const key of ["sb_secret_do-not-expose", " sb_secret_do-not-expose", "sb_secret_do-not-expose "]) {
+    assert.throws(() => publicSupabaseEnv({ NEXT_PUBLIC_SUPABASE_URL: "https://example.test", NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: key }), /NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY/);
+  }
+  const jwt = (role) => `eyJhbGciOiJIUzI1NiJ9.${Buffer.from(JSON.stringify({ role })).toString("base64url")}.signature`;
+  for (const role of ["service_role", "authenticated"]) {
+    assert.throws(() => publicSupabaseEnv({ NEXT_PUBLIC_SUPABASE_URL: "https://example.test", NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: jwt(role) }), /trusted JWT/);
+  }
+  assert.equal(publicSupabaseEnv({ NEXT_PUBLIC_SUPABASE_URL: "https://example.test", NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: jwt("anon") }).key, jwt("anon"));
 });
 
 test("browser dependency graph has no trusted credential or server imports", () => {

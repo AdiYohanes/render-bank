@@ -3,7 +3,7 @@
 **Document:** Database Schema  
 **Product:** RenderBank  
 **Version:** 0.3
-**Status:** Proposed MVP Baseline — Slice 0 review pending
+**Status:** Reviewed MVP baseline; versioned SQL migrations are the executable schema source of truth
 **Target Database:** Supabase PostgreSQL  
 **Architecture Style:** Server-authoritative modular monolith  
 **Depends On:** `docs/product/PRD.md`, `docs/product/SITEMAP.md`, `docs/experience/USER_FLOWS.md`, `docs/experience/SCREEN_REQUIREMENTS.md`, `docs/design/DESIGN.md`, `docs/design/HIGH_FIDELITY_UI.md`, `docs/engineering/TECHNICAL_ARCHITECTURE.md`
@@ -402,7 +402,7 @@ ACCESS_EMAIL_RESENT
 
 `metadata` must contain only safe internal metadata, never raw token or payment credential.
 
-Audit rows should be append-only from the application perspective.
+Audit rows are append-only. A database trigger records active-Admin Prompt and Pack status changes atomically using `auth.uid()` and safe previous/new status metadata; authenticated clients cannot write audit rows directly. Trusted backend operations may insert approved audit events with an explicit verified actor. Other administrative workflows (for example entitlement suspension) must write their reason and audit event in the same future transaction.
 
 ---
 
@@ -2031,9 +2031,9 @@ No historical pack-version table is necessary for MVP because `purchase_entitlem
 
 # 55. Implementation Handoff
 
-This proposed schema contract requires Slice 0 review before SQL migrations. Route/API contracts are added with the feature slice that consumes them rather than as speculative foundation scaffolding.
+Slice 0 review established this schema contract; versioned SQL migrations now own the executable schema. Route/API contracts belong to the feature slice that consumes them rather than speculative foundation scaffolding.
 
-After that review, the slices in [`FOUNDATION_IMPLEMENTATION_PLAN.md`](FOUNDATION_IMPLEMENTATION_PLAN.md) convert the contract into exact PostgreSQL/Supabase migrations including:
+The foundation slices in [`FOUNDATION_IMPLEMENTATION_PLAN.md`](FOUNDATION_IMPLEMENTATION_PLAN.md) implemented the contract as PostgreSQL/Supabase migrations including:
 
 - enum creation;
 - tables;

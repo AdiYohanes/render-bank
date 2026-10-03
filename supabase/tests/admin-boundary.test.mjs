@@ -77,6 +77,36 @@ test("only an active, manually profiled Admin can edit content; no browser ident
   }
 });
 
+test("active Admin can edit valid Prompt, Pack, and membership rows", async () => {
+  const { id, client } = await signedInUser();
+  const promptId = "00000000-0000-4000-8000-000000000602";
+  const packId = "00000000-0000-4000-8000-000000000903";
+  const premiumId = "00000000-0000-4000-8000-000000000603";
+  try {
+    assert.ifError((await trusted.from("admin_profiles").insert({ user_id: id })).error);
+    const { data: prompt, error: promptError } = await client.from("prompts")
+      .update({ title: "Admin-edited draft" }).eq("id", promptId).select("title").single();
+    assert.ifError(promptError);
+    assert.equal(prompt.title, "Admin-edited draft");
+    const { data: pack, error: packError } = await client.from("packs")
+      .update({ title: "Admin-edited unlisted pack" }).eq("id", packId).select("title").single();
+    assert.ifError(packError);
+    assert.equal(pack.title, "Admin-edited unlisted pack");
+    const { data: membership, error: memberError } = await client.from("pack_prompts")
+      .update({ sort_order: 12 }).eq("pack_id", "00000000-0000-4000-8000-000000000901")
+      .eq("prompt_id", premiumId).select("sort_order").single();
+    assert.ifError(memberError);
+    assert.equal(membership.sort_order, 12);
+  } finally {
+    assert.ifError((await trusted.from("prompts").update({ title: "Demo Content: Draft Product" }).eq("id", promptId)).error);
+    assert.ifError((await trusted.from("packs").update({ title: "Demo Content: Unlisted Pack" }).eq("id", packId)).error);
+    assert.ifError((await trusted.from("pack_prompts").update({ sort_order: 10 })
+      .eq("pack_id", "00000000-0000-4000-8000-000000000901").eq("prompt_id", premiumId)).error);
+    assert.ifError((await trusted.from("admin_profiles").delete().eq("user_id", id)).error);
+    assert.ifError((await trusted.auth.admin.deleteUser(id)).error);
+  }
+});
+
 test("active Admin has the approved content grants, but not asset or profile mutations", async () => {
   const { id, client } = await signedInUser();
   try {

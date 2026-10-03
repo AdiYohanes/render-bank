@@ -95,6 +95,39 @@ export type Database = {
           },
         ];
       };
+      admin_audit_logs: {
+        Row: {
+          action: string;
+          actor_user_id: string;
+          created_at: string;
+          entity_id: string | null;
+          entity_type: string;
+          id: string;
+          metadata: NonNullable<Json>;
+          reason: string | null;
+        };
+        Insert: {
+          action: string;
+          actor_user_id: string;
+          created_at?: string;
+          entity_id?: string | null;
+          entity_type: string;
+          id?: string;
+          metadata?: NonNullable<Json>;
+          reason?: string | null;
+        };
+        Update: {
+          action?: string;
+          actor_user_id?: string;
+          created_at?: string;
+          entity_id?: string | null;
+          entity_type?: string;
+          id?: string;
+          metadata?: NonNullable<Json>;
+          reason?: string | null;
+        };
+        Relationships: [];
+      };
       admin_profiles: {
         Row: {
           created_at: string;
