@@ -1023,6 +1023,27 @@ export type Database = {
           purchase_id: string;
         }[];
       };
+      search_public_prompts: {
+        Args: {
+          access_filter?: Database["public"]["Enums"]["prompt_access_type"];
+          category_slug?: string;
+          model_slug?: string;
+          orientation_filter?: Database["public"]["Enums"]["orientation"];
+          page_offset?: number;
+          page_size?: number;
+          search_query?: string;
+        };
+        Returns: {
+          access_type: Database["public"]["Enums"]["prompt_access_type"];
+          category_id: string;
+          id: string;
+          orientation: Database["public"]["Enums"]["orientation"];
+          published_at: string;
+          short_description: string;
+          slug: string;
+          title: string;
+        }[];
+      };
     };
     Enums: {
       access_token_status: "ACTIVE" | "ROTATED" | "REVOKED";
