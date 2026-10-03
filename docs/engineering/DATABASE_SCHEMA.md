@@ -402,7 +402,7 @@ ACCESS_EMAIL_RESENT
 
 `metadata` must contain only safe internal metadata, never raw token or payment credential.
 
-Audit rows should be append-only from the application perspective.
+Audit rows are append-only. A database trigger records active-Admin Prompt and Pack status changes atomically using `auth.uid()` and safe previous/new status metadata; authenticated clients cannot write audit rows directly. Trusted backend operations may insert approved audit events with an explicit verified actor. Other administrative workflows (for example entitlement suspension) must write their reason and audit event in the same future transaction.
 
 ---
 

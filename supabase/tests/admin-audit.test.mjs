@@ -21,6 +21,26 @@ test("audit history is trusted-only, append-only, and retains its actor", async 
   const admin = createClient(url, publishable, { auth: { persistSession: false, autoRefreshToken: false } });
   assert.ifError((await admin.auth.signInWithPassword({ email, password })).error);
   assert.ifError((await trusted.from("admin_profiles").insert({ user_id: created.user.id })).error);
+  const promptId = "00000000-0000-4000-8000-000000000602";
+  const packId = "00000000-0000-4000-8000-000000000903";
+  assert.ifError((await admin.from("prompts").update({ status: "UNPUBLISHED" }).eq("id", promptId)).error);
+  assert.ifError((await admin.from("packs").update({ status: "ARCHIVED" }).eq("id", packId)).error);
+  const { data: transitions, error: transitionError } = await trusted.from("admin_audit_logs")
+    .select("actor_user_id,action,entity_type,entity_id,metadata").eq("actor_user_id", created.user.id);
+  assert.ifError(transitionError);
+  assert.deepEqual(transitions.map(({ action }) => action).sort(), ["PACK_ARCHIVED", "PROMPT_UNPUBLISHED"]);
+  for (const transition of transitions) assert.equal(transition.actor_user_id, created.user.id);
+  assert.deepEqual(transitions.find(({ entity_type }) => entity_type === "PROMPT")?.metadata,
+    { previous_status: "DRAFT", status: "UNPUBLISHED" });
+  assert.deepEqual(transitions.find(({ entity_type }) => entity_type === "PACK")?.metadata,
+    { previous_status: "UNLISTED", status: "ARCHIVED" });
+  assert.ifError((await trusted.from("admin_profiles").update({ is_active: false }).eq("user_id", created.user.id)).error);
+  const { data: rejected, error: rejectedError } = await admin.from("prompts")
+    .update({ status: "ARCHIVED" }).eq("id", promptId).select("id");
+  assert.ok(rejectedError || rejected?.length === 0, "inactive Admin must not change Prompt status");
+  assert.equal((await trusted.from("admin_audit_logs").select("id").eq("actor_user_id", created.user.id)).data.length, 2);
+  assert.ifError((await trusted.from("prompts").update({ status: "DRAFT" }).eq("id", promptId)).error);
+  assert.ifError((await trusted.from("packs").update({ status: "UNLISTED" }).eq("id", packId)).error);
   for (const actor of [visitor, admin]) {
     const { data, error } = await actor.from("admin_audit_logs").select("id");
     assert.ok(error || data?.length === 0, "browser roles cannot read audit rows");

@@ -23,3 +23,22 @@ $$;
 revoke all on function public.preserve_admin_audit_log() from public, anon, authenticated;
 create trigger admin_audit_logs_immutable before update or delete on public.admin_audit_logs
   for each row execute function public.preserve_admin_audit_log();
+
+create function public.audit_admin_publication() returns trigger
+language plpgsql security definer set search_path = '' as $$
+begin
+  if new.status is distinct from old.status and (select auth.uid()) is not null then
+    insert into public.admin_audit_logs (actor_user_id, action, entity_type, entity_id, metadata)
+    values ((select auth.uid()),
+      (case when tg_table_name = 'prompts' then 'PROMPT_' else 'PACK_' end) || new.status::text,
+      case when tg_table_name = 'prompts' then 'PROMPT' else 'PACK' end,
+      new.id, pg_catalog.jsonb_build_object('previous_status', old.status::text, 'status', new.status::text));
+  end if;
+  return new;
+end;
+$$;
+revoke all on function public.audit_admin_publication() from public, anon, authenticated;
+create trigger prompts_audit_publication after update of status on public.prompts
+  for each row execute function public.audit_admin_publication();
+create trigger packs_audit_publication after update of status on public.packs
+  for each row execute function public.audit_admin_publication();
