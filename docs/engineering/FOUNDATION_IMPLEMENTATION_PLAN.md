@@ -1,7 +1,7 @@
 # RenderBank Foundation Implementation Plan
 
 **Parent:** [#1 — Establish the RenderBank MVP foundation](https://github.com/AdiYohanes/render-bank/issues/1)
-**Status:** Slice 0 reviewed; #2–#8 accepted, merged, and closed; parent #1 final contract audit in progress
+**Status:** Slice 0 reviewed; #2–#8 accepted, merged, and closed; parent #1 Definition of Done verified on clean merged `main` (`f6db98a`)
 **Review unit:** One existing GitHub sub-issue and one PR per implementation slice
 
 ## Context
@@ -128,4 +128,4 @@ The owning child issue carries each parent #1 story exactly once. A slice may te
 - [x] Transaction tests prove trusted-only atomic completion, duplicate idempotency, mismatch rollback, and durable entitlement snapshots.
 - [x] Three typed Supabase clients remain isolated; configuration fails clearly and no trusted secret enters a client bundle.
 - [x] The accessible light-only root identifies RenderBank without starter branding or Phase 2 UI.
-- [ ] The one-command gate passes from clean checkout without changing tracked files.
+- [x] The one-command gate passes from clean checkout without changing tracked files.
