@@ -1060,6 +1060,14 @@ export type Database = {
           saved_claim_expires_at: string;
         }[];
       };
+      save_admin_pack: {
+        Args: { p_data: Json; p_pack_id: string };
+        Returns: string;
+      };
+      save_admin_prompt: {
+        Args: { p_data: Json; p_prompt_id: string };
+        Returns: string;
+      };
       search_public_prompts: {
         Args: {
           access_filter?: Database["public"]["Enums"]["prompt_access_type"];

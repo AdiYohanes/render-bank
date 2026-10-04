@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 
 import Link from "next/link";
 
-import { ExploreControls } from "../components/explore-controls";
-import { PromptGrid } from "../components/prompt-grid";
+import { ExploreControls } from "@/app/components/explore-controls";
+import { PromptGrid } from "@/app/components/prompt-grid";
 
 import {
   discoverCategories,

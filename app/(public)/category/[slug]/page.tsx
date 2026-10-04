@@ -3,7 +3,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
-import { PromptGrid } from "../../components/prompt-grid";
+import { PromptGrid } from "@/app/components/prompt-grid";
 
 import { siteUrl } from "@/config/site";
 import { discoverPrompts, findCategory } from "@/lib/discovery/public";

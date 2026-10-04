@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 
 import Link from "next/link";
 
-import { ArtworkFrame } from "./components/artwork";
-import { PromptGrid } from "./components/prompt-grid";
+import { ArtworkFrame } from "@/app/components/artwork";
+import { PromptGrid } from "@/app/components/prompt-grid";
 
 import { siteUrl } from "@/config/site";
 import {
