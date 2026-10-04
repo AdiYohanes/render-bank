@@ -1019,6 +1019,8 @@ Primary CTA:
 Open My Pack
 ```
 
+The `Open My Pack` exchange (claim-to-session) is a Phase 5 behavior. During Phase 4 acceptance the Paid page presents the pack, masked email, and email-first wording without a functioning session exchange; the CTA appears in launch UI only. Hidden interactivity is never shipped as a dead control in Phase 4 — the CTA is absent until the exchange exists. See [ADR-0001](../adr/0001-phase4-midtrans-provider.md).
+
 ## Secondary Action
 
 ```text

@@ -1003,6 +1003,8 @@ WHERE provider_attempt_id IS NOT NULL;
 
 The checkout claim is generated in trusted server memory, stored only as a hash, and never included in the payment-completion RPC. The trusted caller keeps one random attempt key and raw checkout claim stable for safe retries (including the initial response); a retry with the same key and matching terms returns the existing purchase/attempt and original claim expiry, while a conflicting or expired retry fails. The database stores the attempt key, never the raw claim; public reference is derived from both and is not an access credential. Server always compares attempt amount/currency with authoritative purchase data. Attempt amount, currency, provider, and purchase association are immutable after creation. A verified completion accepts an attempt in `CREATED` or `PROCESSING`, transitions it to `SUCCEEDED`, and rejects `FAILED`, `CANCELLED`, `EXPIRED`, or an already-succeeded attempt for a different event.
 
+Provider-attempt binding (`provider_attempt_id`, the provider's order id) is a one-time write performed by the service-role-only `bind_provider_attempt` RPC immediately after the provider checkout is created and before the buyer leaves for the provider page. The `guard_buyer_terms` trigger makes it immutable thereafter; rebinding the same order id is idempotent, and a different order id or a terminal attempt raises. After the attempt ends terminally (`FAILED`/`CANCELLED`/`EXPIRED`), checkout submissions may start a fresh attempt against a fresh claim/attempt key; the old purchase row never changes terms. See [ADR-0001](../adr/0001-phase4-midtrans-provider.md) for the selected provider's exact formulas.
+
 ---
 
 # 27. Payment Events / Webhook Idempotency
@@ -1522,6 +1524,25 @@ In one transaction, the function:
 6. Returns `(purchase.id, true)` only after the transaction succeeds. Any failure rolls back event, states, entitlements, and token together.
 
 A duplicate verified event returns `newly_completed = false`; its unused candidate raw token is discarded and no email is sent. A *different* event for a paid purchase never mints another token. Email delivery is after commit and maintains independent status; email failure cannot undo the purchase or snapshot. The raw token is never persisted. Test duplicate delivery, mismatched provider/product/amount/currency, invalid transitions, public RPC denial, and unchanged entitlements after Pack edits against real local roles.
+
+## record_unpaid_payment_event (companion, same boundary)
+
+A verified non-success event (Failed/Expired/Cancelled per the lifecycle mapping in [ADR-0001](../adr/0001-phase4-midtrans-provider.md)) goes through a second service-role-only function `record_unpaid_payment_event`. It is the only writer of paid-purchase-complement attempt/purchase transitions:
+
+```text
+p_provider, p_provider_event_id, p_provider_attempt_id, p_event_type,
+p_event_outcome  ('FAILED' | 'CANCELLED' | 'EXPIRED' | 'IGNORED')
+```
+
+One transaction:
+
+1. resolve the attempt by `(provider, provider_attempt_id)` exactly once and lock it and the purchase;
+2. insert-or-resolve `(provider, provider_event_id)` idempotently; a completed matching event short-circuits with no mutation;
+3. `IGNORED` (refund, capture-pending, pending) writes the event row only;
+4. otherwise the attempt must be in `CREATED` or `PROCESSING`; transition the attempt and (only while `PROCESSING`) the purchase to the mapped enum value; a paid/succeeded target is impossible here by contract;
+5. store the event digest, never the raw payload; return nothing the caller may mint credentials from.
+
+Replay of the same event is a no-op; simultaneous deliveries serialize on the attempt row; `IGNORED` never regresses a decided attempt; this function can never create an entitlement, a token, or a `PAID` state. Grant only to `service_role`, revoke from `public`, `anon`, `authenticated`, same hygiene as the completion RPC.
 
 ---
 
