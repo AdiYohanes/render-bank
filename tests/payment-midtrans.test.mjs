@@ -6,6 +6,7 @@ import {
   midtransCreateCheckout,
   midtransOrderId,
   midtransSignature,
+  midtransVerifyWebhook,
 } from "../lib/payment/midtrans.mjs";
 import { createCheckout, __setCreateCheckoutForTests } from "../lib/payment/gateway.mjs";
 
@@ -33,6 +34,25 @@ function okFetch(redirectUrl = "https://app.sandbox.midtrans.com/snap/v2/vtweb/f
       return new Response(JSON.stringify({ token: "fake-token", redirect_url: redirectUrl }), { status: 201 });
     },
   };
+}
+
+// Webhook fixture: the raw body must be signed exactly as received.
+function webhookBody(extra = {}) {
+  return JSON.stringify({
+    order_id: `r-${terms.publicReference}`,
+    status_code: "200",
+    gross_amount: "59000.00",
+    transaction_status: "settlement",
+    payment_type: "credit_card",
+    transaction_id: "tx-1",
+    ...extra,
+  });
+}
+
+function signedHeaders(body, key = TEST_SERVER_KEY) {
+  const parsed = JSON.parse(body);
+  const signature = midtransSignature(parsed.order_id, parsed.status_code, parsed.gross_amount, key);
+  return { "x-callback-signature": signature, "content-type": "application/json" };
 }
 
 test("order id and signature formulas match the locked contract", () => {
@@ -123,4 +143,75 @@ test("a registered fake gateway serves the domain seam verbatim", async () => {
   assert.deepEqual(result, { redirectUrl: "https://fake.test/pay" });
   assert.deepEqual(seen, [terms]);
   __setCreateCheckoutForTests(null);
+});
+
+test("a correctly signed webhook verifies and normalizes to the lifecycle allowlist", () => {
+  const body = webhookBody();
+  const event = midtransVerifyWebhook(body, signedHeaders(body), fakeEnv());
+  // deterministic event identity = status:transaction (replay stays equal)
+  assert.deepEqual(event, {
+    outcome: "success",
+    providerEventId: "settlement:tx-1",
+    providerAttemptId: `r-${terms.publicReference}`,
+    eventType: "tx-1",
+  });
+});
+
+test("lifecycle mapping follows the ADR table: first verified fact wins", () => {
+  for (const [status, extra, outcome] of [
+    ["settlement", {}, "success"],
+    ["capture", { fraud_status: "accept" }, "success"],
+    ["capture", { fraud_status: "pending" }, null], // recorded only → not actionable
+    ["pending", {}, null],
+    ["refund", {}, null],
+    ["partial_refund", {}, null],
+    ["cancel", {}, "failed"],
+    ["deny", {}, "failed"],
+    ["expire", {}, "expired"],
+    ["mystery_status", {}, null],
+  ]) {
+    const body = webhookBody({ transaction_status: status, ...extra });
+    const event = midtransVerifyWebhook(body, signedHeaders(body), fakeEnv());
+    assert.equal(event?.outcome ?? null, outcome, `${status} + ${JSON.stringify(extra)}`);
+    if (event) assert.equal(event.providerAttemptId, `r-${terms.publicReference}`);
+  }
+});
+
+test("tampered bodies, bad signatures, and malformed payload fail closed", () => {
+  const body = webhookBody();
+  // tampered body (signature stays over the original) must be rejected
+  const tampered = webhookBody({ gross_amount: "999999.00" });
+  const goodHeaders = signedHeaders(body);
+  assert.throws(() => midtransVerifyWebhook(tampered, goodHeaders, fakeEnv()), /Invalid webhook signature/);
+  // wrong key signs a signature that does not verify
+  assert.throws(() => midtransVerifyWebhook(body, signedHeaders(body, "SB-Mid-server-attacker"), fakeEnv()), /Invalid webhook signature/);
+  // missing signature header
+  assert.throws(() => midtransVerifyWebhook(body, {}, fakeEnv()), /Malformed webhook payload/);
+  // not JSON at all
+  assert.throws(() => midtransVerifyWebhook("not json {", signedHeaders(body), fakeEnv()), /Malformed webhook payload/);
+  // missing facts
+  const partial = JSON.stringify({ order_id: `r-${terms.publicReference}`, status_code: "200" });
+  assert.throws(() => midtransVerifyWebhook(partial, signedHeaders(body), fakeEnv()), /Malformed webhook payload/);
+  // order id outside the merchant formula is never acted on
+  const foreign = webhookBody({ order_id: "not-mine" });
+  assert.throws(() => midtransVerifyWebhook(foreign, signedHeaders(foreign), fakeEnv()), /Malformed webhook payload/);
+  // pretty-printed JSON verifies identically: Midtrans signs field values,
+  // not raw bytes — the signature is over (order_id + status_code + gross_amount + key).
+  const pretty = JSON.stringify(JSON.parse(body), null, 2);
+  assert.deepEqual(midtransVerifyWebhook(pretty, signedHeaders(body), fakeEnv()),
+    midtransVerifyWebhook(body, signedHeaders(body), fakeEnv()));
+});
+
+test("normalization exposes no raw payload fields beyond the allowlist", () => {
+  const body = webhookBody({
+    transaction_status: "cancel",
+    payment_type: "credit_card",
+    masked_card: "481111-1114",
+    buyer_email: "victim@example.invalid",
+    raw_transaction: { secret: "do-not-leak" },
+  });
+  const event = midtransVerifyWebhook(body, signedHeaders(body), fakeEnv());
+  assert.deepEqual(Object.keys(event ?? {}).sort(), ["eventType", "outcome", "providerAttemptId", "providerEventId"]);
+  assert.equal(JSON.stringify(event).includes("victim@example.invalid"), false);
+  assert.equal(JSON.stringify(event).includes("481111"), false);
 });
