@@ -1024,6 +1024,10 @@ export type Database = {
       [_ in never]: never;
     };
     Functions: {
+      bind_provider_attempt: {
+        Args: { p_attempt_key: string; p_order_id: string; p_provider: string };
+        Returns: undefined;
+      };
       complete_paid_purchase: {
         Args: {
           p_amount_minor: number;

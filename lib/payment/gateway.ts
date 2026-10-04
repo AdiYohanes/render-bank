@@ -1,5 +1,6 @@
 import "server-only";
 
-import { createCheckout } from "./gateway.mjs";
+import { __setCreateCheckoutForTests, createCheckout, registerGateway } from "./gateway.mjs";
 
 export { createCheckout };
+export { __setCreateCheckoutForTests, registerGateway };

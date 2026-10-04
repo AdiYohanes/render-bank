@@ -4,10 +4,47 @@ import { redirect } from "next/navigation";
 import { cookies, headers } from "next/headers";
 
 import { CHECKOUT_COOKIE, checkoutCookieOptions, parseCheckoutCookie } from "@/lib/checkout/claim-cookie";
-import { createCheckout } from "@/lib/payment/gateway";
+import { createCheckout, registerGateway } from "@/lib/payment/gateway";
+import { registerMidtransGateway } from "@/lib/payment/midtrans";
 import { initializeCheckout } from "@/lib/checkout/initialize-checkout";
+import type { CheckoutAttemptRow } from "@/lib/checkout/initialize-types";
 import { createProcessingPurchase } from "@/lib/checkout/create-processing-purchase";
 import { resolveCheckoutPack } from "@/lib/checkout/pack-resolve.mjs";
+import { createTrustedSupabaseClient } from "@/lib/supabase/service";
+
+// Register the real provider adapter once per process (server-only import).
+registerGateway(registerMidtransGateway);
+
+/** Stored attempt for the cookie's stable attempt key; null when unknown. */
+async function findAttemptByKey(attemptKey: string): Promise<CheckoutAttemptRow | null> {
+  const trusted = createTrustedSupabaseClient();
+  const { data } = await trusted
+    .from("payment_attempts")
+    .select("public_reference:purchases(public_reference), status, expires_at, order_id:provider_attempt_id, amount_minor, currency, provider")
+    .eq("idempotency_key", attemptKey)
+    .maybeSingle();
+  if (!data) return null;
+  const { public_reference, order_id, expires_at, ...rest } = data as {
+    public_reference: string | { public_reference: string } | null;
+    order_id: string | null;
+    status: CheckoutAttemptRow["status"];
+    expires_at: string;
+    amount_minor: number;
+    currency: string;
+    provider: string;
+  };
+  const reference = typeof public_reference === "object" && public_reference !== null ? public_reference.public_reference : public_reference;
+  if (!reference) return null;
+  return {
+    public_reference: reference,
+    status: rest.status,
+    claim_expires_at: expires_at,
+    order_id,
+    amount_minor: rest.amount_minor,
+    currency: rest.currency,
+    provider: rest.provider,
+  };
+}
 
 /**
  * Submit checkout. Presentation-safe by contract: rejections are opaque reason
@@ -30,7 +67,7 @@ export async function submitCheckout(
   const pack = slug ? await resolveCheckoutPack(slug) : null;
   const decision = await initializeCheckout({
     pack: pack ? { id: pack.id, slug: pack.slug, title: pack.title, price_minor: pack.price_minor, currency: pack.currency } : null,
-    findAttemptByKey: async () => null,
+    findAttemptByKey,
     createPurchase: (input) => createProcessingPurchase(input),
     input: { buyerEmail: String(formData.get("email") ?? ""), reconfirmed: formData.get("reconfirm") === "1" },
     existingCookie: claimCookie,
@@ -50,6 +87,7 @@ export async function submitCheckout(
         buyerEmail: decision.buyerEmail,
         amountMinor: decision.amountMinor,
         currency: decision.currency,
+        attemptKey: decision.attemptKey,
       });
       return { redirectUrl: session.redirectUrl };
     } catch {

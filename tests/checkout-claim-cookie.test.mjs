@@ -21,7 +21,7 @@ test("parsing a checkout cookie round-trips the attempt key and raw claim, rejec
 
   for (const broken of [
     "", "x", // too short
-    `${attemptKey.replace("4", "5")}.${claim}`, // not a v4 uuid
+    `${attemptKey.slice(0, 14)}5${attemptKey.slice(15)}.${claim}`, // version digit broken → not v4
     `${attemptKey}${claim}`, // missing separator
     `${attemptKey}.${claim.slice(0, 42)}`, // claim too short
     `${attemptKey}.${claim}+`, // non-base64url char
