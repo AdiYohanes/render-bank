@@ -932,6 +932,7 @@ Optional short copy:
 - invalid email;
 - pack no longer purchasable;
 - price changed before submit;
+- different email against the in-progress checkout (inline refusal; buyer restarts from the Pack);
 - payment initialization error.
 
 Errors should be inline and actionable.
@@ -945,7 +946,7 @@ Before payment initialization, the server must:
 3. determine authoritative price and currency from the database;
 4. ignore client-submitted price and currency.
 
-If the pack was archived, payment must not start. If the price changed, show the updated price and require confirmation before continuing.
+If the pack was archived, payment must not start. If the price changed, show the updated price and require confirmation before continuing. If a different email is submitted against the checkout still in progress, the server refuses the submit and states that the checkout is already running with a different email, pointing back to the Pack page.
 
 ## Submit Protection
 
@@ -2111,7 +2112,8 @@ We couldn't verify your payment status.
 Actions:
 
 - Check Again;
-- Return to Pack.
+- Return to Pack (when the pack is known);
+- Browse Packs / Explore Prompts.
 
 Do not grant entitlement or describe the payment as failed while its state is unknown.
 

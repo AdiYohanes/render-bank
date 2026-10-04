@@ -296,6 +296,7 @@ Checkout loads pack from route identifier server-side. Server verifies published
 | Invalid email | Inline `Enter a valid email address.` |
 | Archived/not purchasable | Do not initialize payment; show unavailable state with pack/explore recovery |
 | Price changed | Show authoritative new price and currency; require explicit reconfirmation before payment |
+| Email in use by in-progress checkout | Inline non-technical refusal; buyer restarts from the Pack page |
 | Initializing | CTA disabled, readable loading label; duplicate clicks cannot create accidental attempts |
 | Initialization error | Inline non-technical error, retain email and order summary, allow retry |
 

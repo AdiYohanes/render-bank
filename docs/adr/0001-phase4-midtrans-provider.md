@@ -90,7 +90,7 @@ Additional hard rules:
 - A mismatched event (other attempt, other amount, other order) is a hard error; nothing mutated, and the reply is `200` with safe logging (provider will not retry better data).
 - Replay of the *same* `(provider, provider_event_id)` is safe: the recorded event row short-circuits handling; the paid path returns `newly_completed=false`, mints no second token, sends no duplicate email.
 - Concurrent delivery is safe: paid completion relies `complete_paid_purchase`'s existing row-locked serial behavior (already proven by `supabase/tests/paid-purchase.test.mjs`), and non-success recording takes the same attempt row lock before checking transition legality.
-- All `payment_events` rows record a SHA-256 digest of the raw provider payload (`provider_payload_digest`); raw payload bodies are not persisted.
+- Non-success recording stores a SHA-256 digest of the raw provider payload in `payment_events.provider_payload_digest` (`record_unpaid_payment_event`); raw payload bodies are not persisted. The paid path records the event without a digest — its verified facts (provider, event id, attempt, event type) are already unique and the column is nullable.
 
 ## Wrong-route payment-state behavior (server state always wins)
 

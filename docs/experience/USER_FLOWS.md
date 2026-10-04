@@ -756,7 +756,8 @@ Ketika checkout diproses:
 
 - tombol submit dinonaktifkan sementara;
 - repeated submit tidak boleh membuat accidental duplicate payment attempt;
-- active attempt dapat digunakan kembali jika aman dan didukung provider.
+- active attempt dapat digunakan kembali jika aman dan didukung provider;
+- submit ulang dengan email berbeda terhadap attempt yang masih aktif ditolak database (`Checkout idempotency key conflict`) dan ditampilkan sebagai inline error — attempt yang aktif tidak diorphan dengan rotasi senyap (ADR-0001).
 
 ---
 
