@@ -37,8 +37,8 @@ Parent #1 masih **open**; #2–#8 **closed**. Slice 0 adalah prasyarat dokumenta
 |---|---|
 | Baseline | [PR #20](https://github.com/AdiYohanes/render-bank/pull/20) public discovery core merged (`a7c288d`, `701b991`, merge `3044f7c`) |
 | Issue | [#21 Complete Phase 2 Public Discovery to contract](https://github.com/AdiYohanes/render-bank/issues/21) — open |
-| Implementasi lokal | Branch `docs/foundation-contract`; checklist di bawah dikerjakan lokal, belum di-push |
-| Acceptance | Issue #21 ditutup hanya setelah revisi merged lulus full automated gate + focused browser checks |
+| Implementasi lokal | Branch `docs/foundation-contract`; implementasi [PR #22](https://github.com/AdiYohanes/render-bank/pull/22) (commit `97a3e7e`, reformat `8530703`) sudah di-push `701b991..8530703`; belum merged |
+| Acceptance | Issue #21 ditutup hanya setelah PR #22 merged lulus full automated gate + focused browser checks |
 
 Checklist #21 (lihat issue untuk versi otoritatif):
 
@@ -52,7 +52,7 @@ Checklist #21 (lihat issue untuk versi otoritatif):
 - [x] Search RPC menolak input langsung >100 karakter (domain `bounded_search_text`)
 - [x] Kegagalan query kategori header tidak menjatuhkan route statis (Suspense + fallback)
 - [x] SEO: OpenGraph aman, JSON-LD minim (WebSite/CollectionPage/ItemList), `robots.ts`, `sitemap.ts` dibatasi route Phase 2
-- [ ] Docs sync selesai dipublikasikan (DATABASE_SCHEMA contract, README wording, tracker ini)
-- [ ] Evidence verifikasi: full gate lokal lulus; focused browser checks; komitmen/push/PR berikutnya
+- [x] Docs sync: DATABASE_SCHEMA contract, README wording, tracker ini (core sync; tracker refresh mengikuti milestone berikutnya)
+- [ ] Evidence verifikasi: full gate lokal lulus (✓ otomatis); focused browser checks pending; merged/accepted pending
 
 Tetap di Phase 3–6 (tidak masuk scope #21): Prompt Detail/Admin, storefront/checkout pack, buyer access, provisioning konten launch, analytics, monitoring, performance budget, audit aksesibilitas penuh.
