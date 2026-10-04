@@ -87,6 +87,18 @@ async function smoke() {
     const checkoutArchived = await fetch(`${base}/checkout/demo-archived-pack`, { signal: AbortSignal.timeout(5000) });
     assert.equal(checkoutArchived.status, 200, "checkout for an unavailable pack must render, not error");
     assert.match(await checkoutArchived.text(), /not purchasable/i, "unavailable checkout must refuse to sell");
+
+    // /payment/*: unknown references render Unknown copy in the requested
+    // route, never coerced to paid/failed; noindex; safe to load directly.
+    for (const route of ["success", "pending", "failed", "cancelled"]) {
+      const unknown = await fetch(`${base}/payment/${route}?ref=${"z".repeat(43)}`, { signal: AbortSignal.timeout(5000) });
+      assert.equal(unknown.status, 200, `/payment/${route} unknown ref must render, not error`);
+      const html = await unknown.text();
+      assert.match(html, /couldn&#x27;t verify your payment status|couldn't verify your payment status/, "unknown ref shows the Unknown copy");
+      assert.match(html, /noindex/i, `payment/${route} must be noindex`);
+      assert.doesNotMatch(html, /74[0-9a-f]{10}|open my pack/i, "unknown view must not promise access or CTA state");
+    }
+
     for (const route of ["/blog", "/docs", "/pricing"]) {
       const result = await fetch(`${base}${route}`, { signal: AbortSignal.timeout(5000) });
       assert.equal(result.status, 404, `${route} should not serve starter content`);
@@ -100,6 +112,7 @@ async function smoke() {
     assert.doesNotMatch(robotsText, /Disallow: \/packs\//, "pack storefront must be indexable");
     assert.match(robotsText, /Disallow: \/admin\//);
     assert.match(robotsText, /Disallow: \/checkout\//, "checkout must stay out of search");
+    assert.match(robotsText, /Disallow: \/payment\//, "payment status must stay out of search");
 
     const free = await fetch(`${base}/prompts/demo-studio-product`, { signal: AbortSignal.timeout(5000) });
     assert.equal(free.status, 200);
