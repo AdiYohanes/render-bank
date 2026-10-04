@@ -10,7 +10,8 @@ const starterCopy = /HeroUI|ACME|Make beautiful|Powered by|Sponsor|heroui\.com|n
 export function assertRoot(status, html) {
   assert.equal(status, 200, "root must respond with HTTP 200");
   assert.match(html, /<html[^>]+lang="en"/);
-  assert.match(html, /<h1[^>]*>RenderBank<\/h1>/);
+  assert.match(html, /Don(?:'|&#x27;|&#39;)t prompt from scratch\./);
+  assert.match(html, /Explore Prompts/);
   assert.doesNotMatch(html, starterCopy);
 }
 
@@ -58,12 +59,17 @@ async function smoke() {
     if (!response) throw new Error(`Production server did not start. Run npm run build first.\n${startupError ?? output}`);
     assertRoot(response.status, await response.text());
 
-    for (const route of ["/about", "/blog", "/docs", "/pricing"]) {
+    for (const route of ["/explore", "/about", "/packs", "/terms", "/privacy"]) {
+      const result = await fetch(`${base}${route}`, { signal: AbortSignal.timeout(5000) });
+      assert.equal(result.status, 200, `${route} should load`);
+      assert.doesNotMatch(await result.text(), starterCopy);
+    }
+    for (const route of ["/blog", "/docs", "/pricing"]) {
       const result = await fetch(`${base}${route}`, { signal: AbortSignal.timeout(5000) });
       assert.equal(result.status, 404, `${route} should not serve starter content`);
     }
 
-    console.log("Production root smoke passed.");
+    console.log("Production public routes smoke passed.");
   } finally {
     if (child.exitCode === null) child.kill();
     await Promise.race([exited, new Promise((resolve) => setTimeout(resolve, 5000))]);
