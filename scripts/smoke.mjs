@@ -13,6 +13,8 @@ export function assertRoot(status, html) {
   assert.match(html, /Don(?:'|&#x27;|&#39;)t prompt from scratch\./);
   assert.match(html, /Explore Prompts/);
   assert.doesNotMatch(html, starterCopy);
+  assert.match(html, /"@type"\s*:\s*"WebSite"|&#x22;@type&#x22;:&#x22;WebSite&#x22;/, "root must embed WebSite JSON-LD");
+  assert.doesNotMatch(html, /SECRET_PREMIUM|PRIVATE DRAFT RECIPE/, "root must never leak protected recipe markers");
 }
 
 async function availablePort() {
@@ -62,12 +64,27 @@ async function smoke() {
     for (const route of ["/explore", "/about", "/packs", "/terms", "/privacy"]) {
       const result = await fetch(`${base}${route}`, { signal: AbortSignal.timeout(5000) });
       assert.equal(result.status, 200, `${route} should load`);
-      assert.doesNotMatch(await result.text(), starterCopy);
+      const html = await result.text();
+      assert.doesNotMatch(html, starterCopy);
+      assert.doesNotMatch(html, /SECRET_PREMIUM|PRIVATE DRAFT RECIPE/, `${route} must never leak protected recipe markers`);
     }
     for (const route of ["/blog", "/docs", "/pricing"]) {
       const result = await fetch(`${base}${route}`, { signal: AbortSignal.timeout(5000) });
       assert.equal(result.status, 404, `${route} should not serve starter content`);
     }
+
+    const robots = await fetch(`${base}/robots.txt`, { signal: AbortSignal.timeout(5000) });
+    assert.equal(robots.status, 200, "robots.txt should be served");
+    const robotsText = await robots.text();
+    assert.match(robotsText, /Sitemap: .+\/sitemap\.xml/);
+    assert.match(robotsText, /Disallow: \/prompts\//, "later-phase prompt detail stays out of indexing");
+
+    const sitemap = await fetch(`${base}/sitemap.xml`, { signal: AbortSignal.timeout(5000) });
+    assert.equal(sitemap.status, 200, "sitemap.xml should be served");
+    const sitemapText = await sitemap.text();
+    assert.match(sitemapText, /<loc>.*\/explore<\/loc>/);
+    assert.match(sitemapText, /<loc>.*\/about<\/loc>/);
+    assert.doesNotMatch(sitemapText, /<(loc>.*\/(packs|prompts|terms|privacy|category\/draft))/, "sitemap must not list later-phase or non-public routes");
 
     console.log("Production public routes smoke passed.");
   } finally {

@@ -775,6 +775,7 @@ export type Database = {
           category_id: string;
           created_at: string;
           description: string | null;
+          featured_order: number | null;
           id: string;
           last_tested_at: string | null;
           orientation: Database["public"]["Enums"]["orientation"] | null;
@@ -793,6 +794,7 @@ export type Database = {
           category_id: string;
           created_at?: string;
           description?: string | null;
+          featured_order?: number | null;
           id?: string;
           last_tested_at?: string | null;
           orientation?: Database["public"]["Enums"]["orientation"] | null;
@@ -811,6 +813,7 @@ export type Database = {
           category_id?: string;
           created_at?: string;
           description?: string | null;
+          featured_order?: number | null;
           id?: string;
           last_tested_at?: string | null;
           orientation?: Database["public"]["Enums"]["orientation"] | null;
@@ -1031,7 +1034,7 @@ export type Database = {
           orientation_filter?: Database["public"]["Enums"]["orientation"];
           page_offset?: number;
           page_size?: number;
-          search_query?: string;
+          search_query?: unknown;
         };
         Returns: {
           access_type: Database["public"]["Enums"]["prompt_access_type"];

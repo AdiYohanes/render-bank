@@ -40,7 +40,25 @@ npm run foundation:check
 
 The command runs `npm ci` from the committed lockfile, typecheck and non-mutating lint, checks Docker and local Supabase, resets the **local** database and Demo Content, runs real-role policy/Storage/RPC tests, checks generated database types without rewriting them, then runs all application tests, a production build, a public-output trusted-key scan, and the production root smoke check. It starts local Supabase when needed; no Dashboard changes, remote project, `.env.local`, payment provider credentials, or hand-created schema are required. The build receives local public URL/publishable values from the CLI and deliberately omits the Supabase, payment, email, and session server credentials; it does not log local keys. Remove `.env`, `.env.local`, `.env.production`, and `.env.production.local` before running the gate: Next.js could otherwise override public build values or load a trusted key. A clean checkout needs none of these files. Each stage is labeled; if one fails, address its error and rerun the command. `npm ci` and Supabase reset can change local dependencies and **local database rows** respectively, but the gate compares Git status before and after to catch file changes. Stop services with `npm exec -- supabase stop` when finished.
 
-Seed rows are **Demo Content**, not tested launch inventory. Home, Explore, and Category show their safe metadata; seed preview rows have no image bytes, so the UI displays a labeled reserved-frame fallback until real validated artwork is uploaded. Prompt detail and Prompt Pack destinations are interim noindex previews, not usable recipes or a storefront; purchases remain unavailable.
+Seed rows are **Demo Content**, not tested launch inventory. Home, Explore, and Category show their safe metadata; seed preview rows have no image bytes, so the UI displays a labeled reserved-frame fallback until real validated artwork is uploaded. Demo rows carry `featured_order` values that exercise Home curation and are likewise unvalidated examples. Prompt detail and Prompt Pack destinations are interim noindex previews, not usable recipes or a storefront; purchases remain unavailable.
+
+## Phase 2 delivery gate
+
+Public Discovery builds on the foundation gate. After any Phase 2 change (discovery curation, filter shell, SEO surface), run the full sequence locally with Docker Desktop running:
+
+```bash
+npm run db:reset
+npm run db:test
+npm run db:types
+npm run db:types:check
+npm test
+npm run typecheck
+npm run lint
+npm run build
+npm run smoke
+```
+
+`npm run db:reset` re-applies migrations including the Phase 2 completion migration (featured `prompts.featured_order`, partial index, and the `bounded_search_text` domain that rejects oversized direct search input at the database level). The smoke check asserts protected recipe markers never reach public HTML, `robots.txt` excludes later-phase routes, and `sitemap.xml` stays limited to indexable Phase 2 routes (`/`, `/explore`, `/about`, active category routes). Focused browser verification covers keyboard operability of the header dropdown and drawers, filter chip semantics, and skeleton loading states; those interactions rely on HeroUI's built-in focus management.
 
 ## Admin provisioning and preview artwork
 
