@@ -1,8 +1,6 @@
 import type { Metadata, Viewport } from "next";
 
 import "@/styles/globals.css";
-import { PublicFooter, PublicHeader } from "./components/public-shell";
-
 import { siteConfig, siteUrl } from "@/config/site";
 
 export const metadata: Metadata = {
@@ -27,9 +25,7 @@ export default function RootLayout({
         <a className="skip-link" href="#main">
           Skip to content
         </a>
-        <PublicHeader />
         {children}
-        <PublicFooter />
       </body>
     </html>
   );

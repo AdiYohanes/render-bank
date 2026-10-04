@@ -77,14 +77,36 @@ async function smoke() {
     assert.equal(robots.status, 200, "robots.txt should be served");
     const robotsText = await robots.text();
     assert.match(robotsText, /Sitemap: .+\/sitemap\.xml/);
-    assert.match(robotsText, /Disallow: \/prompts\//, "later-phase prompt detail stays out of indexing");
+    assert.doesNotMatch(robotsText, /Disallow: \/prompts\//, "public prompt detail must be indexable");
+    assert.match(robotsText, /Disallow: \/admin\//);
+
+    const free = await fetch(`${base}/prompts/demo-studio-product`, { signal: AbortSignal.timeout(5000) });
+    assert.equal(free.status, 200);
+    const freeHtml = await free.text();
+    assert.match(freeHtml, /Copy Prompt/);
+    assert.match(freeHtml, /Make a studio product image/);
+    assert.match(freeHtml, /CreativeWork/);
+    assert.doesNotMatch(freeHtml, /SECRET_PREMIUM|PRIVATE DRAFT RECIPE/);
+    const locked = await fetch(`${base}/prompts/demo-premium-studio`, { signal: AbortSignal.timeout(5000) });
+    assert.equal(locked.status, 200);
+    const lockedHtml = await locked.text();
+    assert.match(lockedHtml, /View Pack/);
+    assert.match(lockedHtml, /Copy Link/);
+    assert.match(lockedHtml, /Included in Demo Content: Product Pack/);
+    assert.doesNotMatch(lockedHtml, /<meta name="robots" content="noindex/);
+    assert.doesNotMatch(lockedHtml, /SECRET_PREMIUM|PRIVATE DRAFT RECIPE/);
+    const prior = await fetch(`${base}/prompts/demo-premium-old`, { redirect: "manual", signal: AbortSignal.timeout(5000) });
+    assert.equal(prior.status, 301);
+    assert.match(prior.headers.get("location") ?? "", /\/prompts\/demo-premium-studio$/);
 
     const sitemap = await fetch(`${base}/sitemap.xml`, { signal: AbortSignal.timeout(5000) });
     assert.equal(sitemap.status, 200, "sitemap.xml should be served");
     const sitemapText = await sitemap.text();
     assert.match(sitemapText, /<loc>.*\/explore<\/loc>/);
     assert.match(sitemapText, /<loc>.*\/about<\/loc>/);
-    assert.doesNotMatch(sitemapText, /<(loc>.*\/(packs|prompts|terms|privacy|category\/draft))/, "sitemap must not list later-phase or non-public routes");
+    assert.match(sitemapText, /<loc>.*\/prompts\/demo-studio-product<\/loc>/);
+    assert.match(sitemapText, /<loc>.*\/prompts\/demo-premium-studio<\/loc>/);
+    assert.doesNotMatch(sitemapText, /<(loc>.*\/(packs|terms|privacy|category\/draft|prompts\/demo-draft))/, "sitemap must not list later-phase or non-public routes");
 
     console.log("Production public routes smoke passed.");
   } finally {
