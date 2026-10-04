@@ -46,6 +46,12 @@ export default async function PackDetail({ params }: Props) {
           <h1>{detail.title}</h1>
           <p>{detail.description}</p>
           <dl className="pack-meta">
+            {detail.models.length > 0 && (
+              <div>
+                <dt>Models</dt>
+                <dd>{detail.models.join(", ")}</dd>
+              </div>
+            )}
             <div>
               <dt>Prompts</dt>
               <dd>{detail.promptCount}</dd>

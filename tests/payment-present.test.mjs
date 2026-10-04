@@ -58,7 +58,7 @@ test("pack sales detail exposes the safe allowlist and derives non-locked facts"
     cover,
     prompts: [promptRow, promptRow],
   });
-  assert.deepEqual(Object.keys(detail).sort(), ["currency", "description", "examples", "previews", "price", "promptCount", "slug", "title", "useCases"]);
+  assert.deepEqual(Object.keys(detail).sort(), ["currency", "description", "examples", "models", "previews", "price", "promptCount", "slug", "title", "useCases"]);
   assert.equal(detail.promptCount, 2);
   assert.match(detail.price, /Rp[\s ]59\.000$/u);
   assert.deepEqual(Object.keys(detail.previews[0]).sort(), ["description", "href", "title"]);
@@ -74,4 +74,32 @@ test("pack sales detail handles a cover-less pack and an empty membership", () =
   assert.deepEqual(result.examples, []);
   assert.deepEqual(result.previews, []);
   assert.deepEqual(result.useCases, []);
+  assert.deepEqual(result.models, []);
+});
+
+test("pack sales detail never carries locked recipe fields into the view model", () => {
+  const promptRow = {
+    id: "p-secret",
+    slug: "locked-prompt",
+    title: "Locked Prompt",
+    short_description: "Big look",
+    recipe_body: "SECRET_PREMIUM step-by-step recipe",
+    protected_variables: JSON.stringify([{ name: "subject", value: "SECRET" }]),
+    access_type: "PACK_ONLY",
+    images: [{ is_primary: true, alt_text: "A", media_assets: cover }],
+    category: { name: "Product Photography" },
+    models: [{ models: { name: "Nano Banana" } }],
+  };
+  const serialized = JSON.stringify(packDetail({
+    slug: "demo-product-pack",
+    title: "Demo Content: Product Pack",
+    description: "Curated product photo prompts",
+    priceMinor: 59000,
+    currency: "IDR",
+    cover,
+    prompts: [promptRow],
+  }));
+  assert.ok(!serialized.includes("SECRET_PREMIUM") && !serialized.includes("SECRET"), "locked recipe content must not survive projection");
+  assert.ok(!serialized.includes("recipe_body") && !serialized.includes("protected_variables"), "locked field names must not survive projection");
+  assert.ok(serialized.includes("Locked Prompt") && serialized.includes("Big look"), "safe preview fields survive");
 });

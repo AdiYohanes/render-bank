@@ -177,6 +177,7 @@ async function queryPackDetail(slug: string) {
       "slug,title,description,price_minor,currency,cover:media_assets(storage_path,width,height,bucket),prompts:pack_prompts(sort_order,prompt:prompts(id,slug,title,short_description,aspect_ratio,images:prompt_images(is_primary,alt_text,media_assets(storage_path,width,height,bucket)),category:categories(name),models:prompt_models(models(name))))",
     )
     .eq("slug", slug)
+    .eq("status", "PUBLISHED")
     .single();
   if (error || !pack) {
     if (error?.code === "PGRST116") return null;

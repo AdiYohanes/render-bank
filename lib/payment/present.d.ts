@@ -37,6 +37,7 @@ export type PackDetail = {
   currency: string;
   promptCount: number;
   useCases: string[];
+  models: string[];
   previews: PackPreview[];
   examples: PackExample[];
 };
@@ -75,5 +76,6 @@ export function packDetail(pack: {
     short_description: string;
     images?: Array<{ is_primary: boolean; alt_text: string; media_assets: NonNullable<PackCover> }> | null;
     category?: { name: string } | null;
+    models?: Array<{ models: { name: string } | null } | null> | null;
   } | null>;
 }): PackDetail;
