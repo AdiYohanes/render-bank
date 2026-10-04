@@ -28,3 +28,27 @@ test("pagination keeps filters while adding results", () => {
   assert.deepEqual(discoveryWindow(83), { size: 997, offset: 0 });
   assert.equal(discoveryState({ page: "84" }).page, 83);
 });
+
+test("artwork helpers resolve demo assets to null and keep stored geometry fallback", async () => {
+  const { artworkUrl } = await import("../lib/discovery/shared.mjs");
+  assert.equal(artworkUrl(null), null);
+  assert.equal(artworkUrl({ storage_path: "demo/preview.webp", bucket: "prompt-previews" }), null);
+  const previous = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  try {
+    process.env.NEXT_PUBLIC_SUPABASE_URL = "https://sample.supabase.co";
+    assert.equal(
+      artworkUrl({ storage_path: "uploads/one two.webp", bucket: "prompt-previews" }),
+      "https://sample.supabase.co/storage/v1/object/public/prompt-previews/uploads/one%20two.webp",
+    );
+  } finally {
+    if (previous === undefined) delete process.env.NEXT_PUBLIC_SUPABASE_URL;
+    else process.env.NEXT_PUBLIC_SUPABASE_URL = previous;
+  }
+});
+
+test("ratio falls back to 4:5 when stored dimensions are unusable", async () => {
+  const { ratioOf } = await import("../lib/discovery/shared.mjs");
+  assert.equal(ratioOf(null), 0.8);
+  assert.equal(ratioOf({ width: 0, height: 100 }), 0.8);
+  assert.equal(ratioOf({ width: 1200, height: 900 }), 1200 / 900);
+});

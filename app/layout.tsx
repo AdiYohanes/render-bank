@@ -1,11 +1,12 @@
 import type { Metadata, Viewport } from "next";
 
 import "@/styles/globals.css";
-import { siteConfig } from "@/config/site";
 import { PublicFooter, PublicHeader } from "./components/public-shell";
 
+import { siteConfig, siteUrl } from "@/config/site";
+
 export const metadata: Metadata = {
-  metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL || process.env.VERCEL_URL && `https://${process.env.VERCEL_URL}` || "http://localhost:3000"),
+  metadataBase: new URL(siteUrl()),
   title: { default: siteConfig.name, template: `%s | ${siteConfig.name}` },
   description: siteConfig.description,
 };
@@ -22,7 +23,14 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <body><a className="skip-link" href="#main">Skip to content</a><PublicHeader />{children}<PublicFooter /></body>
+      <body>
+        <a className="skip-link" href="#main">
+          Skip to content
+        </a>
+        <PublicHeader />
+        {children}
+        <PublicFooter />
+      </body>
     </html>
   );
 }

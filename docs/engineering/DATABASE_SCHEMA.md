@@ -570,6 +570,7 @@ prompts
 - status prompt_status NOT NULL DEFAULT DRAFT
 - last_tested_at timestamptz nullable
 - published_at timestamptz nullable
+- featured_order integer nullable CHECK (featured_order >= 0)
 - created_at
 - updated_at
 ```
@@ -589,7 +590,8 @@ Rules:
 - this table contains safe metadata only; no recipe, protected variables, buyer data, or credentials;
 - public reads require `status = PUBLISHED`, with `UNLISTED`, `UNPUBLISHED`, `ARCHIVED`, and `DRAFT` excluded;
 - slug changes after publish create a redirect record;
-- `aspect_ratio` can support values such as `1:1`, `4:5`, `9:16`, `16:9`, or other valid ratios.
+- `aspect_ratio` can support values such as `1:1`, `4:5`, `9:16`, `16:9`, or other valid ratios;
+- `featured_order` is NULL for non-featured Prompts; a non-NULL value is a non-negative editorial rank, read publicly only for `PUBLISHED` rows and ordered by `featured_order, id` via the partial index `prompts_featured_public`.
 
 Recommended aspect ratio validation:
 
@@ -1238,6 +1240,8 @@ use_cases.name
 
 Never include unauthorized premium `prompt_template` in public search index/query result.
 
+The public search function accepts an anonymous `search_query` typed as `bounded_search_text` (domain over `text`, `CHECK (length(btrim(value)) <= 100)`), so direct RPC input longer than 100 trimmed characters is rejected at the database level instead of being silently truncated. The URL layer additionally bounds query strings before the RPC is called.
+
 Recommended first implementation:
 
 ```text
@@ -1270,6 +1274,7 @@ INDEX prompts(category_id, status, published_at DESC)
 INDEX prompts(access_type, status)
 INDEX prompts(orientation, status)
 INDEX prompts(primary_sales_pack_id)
+INDEX prompts(featured_order, id) WHERE status = 'PUBLISHED' AND featured_order IS NOT NULL
 
 GIN / trigram index prompts(title)
 GIN / trigram index prompts(short_description)

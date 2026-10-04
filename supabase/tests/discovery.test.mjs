@@ -29,3 +29,19 @@ test("Visitor combines filters and pages with stable order", async () => {
   assert.deepEqual((await search({ search_query: "Demo", page_size: 1, page_offset: 1 })).map((row) => row.slug), ["demo-premium-studio"]);
   assert.equal((await search({ search_query: "Demo", page_size: 25 })).length, 3);
 });
+
+test("RPC rejects oversized direct search input", async () => {
+  const { data, error } = await visitor.rpc("search_public_prompts", { search_query: "x".repeat(101) });
+  assert.ok(error, "oversized input must be rejected");
+  assert.equal(data, null);
+  const accepted = await search({ search_query: "x".repeat(100) });
+  assert.ok(Array.isArray(accepted));
+});
+
+test("Published featured prompts order by featured_order then id", async () => {
+  const { data, error } = await visitor.from("prompts").select("slug,featured_order,status").not("featured_order", "is", null).eq("status", "PUBLISHED").order("featured_order").order("id");
+  assert.ifError(error);
+  assert.deepEqual(data.map((row) => row.slug), ["demo-studio-product", "demo-premium-studio"]);
+  const drafts = data.filter((row) => row.status !== "PUBLISHED");
+  assert.deepEqual(drafts, []);
+});
