@@ -8,7 +8,7 @@ import {
   midtransSignature,
   midtransVerifyWebhook,
 } from "../lib/payment/midtrans.mjs";
-import { createCheckout, __setCreateCheckoutForTests } from "../lib/payment/gateway.mjs";
+import { createCheckout, __setCreateCheckoutForTests, registerWebhookVerifier, verifyAndNormalizeWebhook } from "../lib/payment/gateway.mjs";
 
 // Stable fake server key used ONLY as a test vector — never a real credential.
 const TEST_SERVER_KEY = "SB-Mid-server-fake-test-vector-key-never-real";
@@ -96,6 +96,56 @@ test("createCheckout posts authoritative terms and binds before handoff", async 
   assert.deepEqual(binds, [{ attemptKey: terms.attemptKey, provider: "midtrans", orderId: `r-${terms.publicReference}` }]);
 });
 
+test("a 409 create recovers via /v2 status: not-yet-paid resumes the same session; no second create", async () => {
+  const calls = [];
+  let calls409Answered = 0;
+  const fetchImpl = async (url) => {
+    calls.push(url);
+    if (calls.length === 1) return new Response(JSON.stringify({ error: "4252" }), { status: 409 });
+    calls409Answered++;
+    assert.match(url, /^https:\/\/app\.sandbox\.midtrans\.com\/v2\/r-[A-Za-z0-9_-]+\/status$/);
+    return new Response(JSON.stringify({ transaction_status: "pending", snap_redirect_url: "https://app.sandbox.midtrans.com/snap/v2/vtweb/existing-token" }), { status: 200 });
+  };
+  const binds = [];
+  const result = await midtransCreateCheckout(terms, {
+    bindAttempt: async (attemptKey, provider, orderId) => binds.push({ attemptKey, provider, orderId }),
+    fetchImpl,
+    env: fakeEnv(),
+  });
+  assert.equal(result.recovered, true, "recovery marked so the flow knows the session was resumed");
+  assert.equal(result.redirectUrl, "https://app.sandbox.midtrans.com/snap/v2/vtweb/existing-token");
+  // exactly one create POST; the /v2 status read is the only re-entry (ADR-0001)
+  assert.equal(calls.filter((u) => u.includes("/snap/v1/transactions")).length, 1);
+  assert.equal(calls409Answered, 1);
+  assert.deepEqual(binds, [{ attemptKey: terms.attemptKey, provider: "midtrans", orderId: `r-${terms.publicReference}` }]);
+});
+
+test("a 409 create for an already-settled order surfaces the settled signal for the status-route redirect", async () => {
+  const calls = [];
+  const fetchImpl = async (url) => {
+    calls.push(url);
+    if (calls.length === 1) return new Response(JSON.stringify({ error: "4252" }), { status: 409 });
+    return new Response(JSON.stringify({ transaction_status: "settlement", transaction_id: "tx-settled" }), { status: 200 });
+  };
+  await assert.rejects(
+    midtransCreateCheckout(terms, { bindAttempt: async () => {}, fetchImpl, env: fakeEnv() }),
+    (error) => error.name === "SettledOrderError" && !error.message.includes("tx-settled"),
+    "settled recovery must stay presentation-safe",
+  );
+  assert.equal(calls.filter((u) => u.includes("/snap/v1/transactions")).length, 1);
+});
+
+test("a 409 recovery with a failed status read fails closed as a provider rejection", async () => {
+  const fetchImpl = async (url) => {
+    if (String(url).includes("/snap/v1/transactions")) return new Response("{}", { status: 409 });
+    return new Response("{}", { status: 500 });
+  };
+  await assert.rejects(
+    midtransCreateCheckout(terms, { bindAttempt: async () => {}, fetchImpl, env: fakeEnv() }),
+    /Payment provider rejected the checkout/,
+  );
+});
+
 test("provider failures never leak error bodies; requester gets actionable failures only", async () => {
   for (const [status, expected] of [
     [500, "Payment provider rejected the checkout"],
@@ -145,6 +195,18 @@ test("a registered fake gateway serves the domain seam verbatim", async () => {
   __setCreateCheckoutForTests(null);
 });
 
+test("the webhook seam verifies through the registered normalizer and fails closed unregistered", () => {
+  const body = webhookBody();
+  // unregistered → fail closed, exactly like create
+  assert.throws(() => verifyAndNormalizeWebhook(body, signedHeaders(body)), /Payment provider is unavailable/);
+  // registered adapter serves the same code path the route consumes
+  registerWebhookVerifier((raw, headers) => midtransVerifyWebhook(raw, headers, fakeEnv()));
+  const event = verifyAndNormalizeWebhook(body, signedHeaders(body));
+  assert.equal(event?.outcome, "success");
+  registerWebhookVerifier(null);
+  assert.throws(() => verifyAndNormalizeWebhook(body, signedHeaders(body)), /Payment provider is unavailable/);
+});
+
 test("a correctly signed webhook verifies and normalizes to the lifecycle allowlist", () => {
   const body = webhookBody();
   const event = midtransVerifyWebhook(body, signedHeaders(body), fakeEnv());
@@ -161,10 +223,10 @@ test("lifecycle mapping follows the ADR table: first verified fact wins", () => 
   for (const [status, extra, outcome] of [
     ["settlement", {}, "success"],
     ["capture", { fraud_status: "accept" }, "success"],
-    ["capture", { fraud_status: "pending" }, null], // recorded only → not actionable
-    ["pending", {}, null],
-    ["refund", {}, null],
-    ["partial_refund", {}, null],
+    ["capture", { fraud_status: "pending" }, "ignored"], // recorded only (ADR table)
+    ["pending", {}, "ignored"],
+    ["refund", {}, "ignored"],
+    ["partial_refund", {}, "ignored"],
     ["cancel", {}, "failed"],
     ["deny", {}, "failed"],
     ["expire", {}, "expired"],

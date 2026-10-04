@@ -8,13 +8,19 @@
 import { createHash, randomBytes } from "node:crypto";
 
 import { createTrustedSupabaseClient } from "@/lib/supabase/service";
-import { midtransVerifyWebhook } from "@/lib/payment/midtrans.mjs";
+import { registerWebhookVerifier, verifyAndNormalizeWebhook } from "@/lib/payment/gateway";
+import { registerMidtransGateway, midtransWebhookVerifier } from "@/lib/payment/midtrans";
 import type { NormalizedWebhookEvent } from "@/lib/payment/midtrans.d";
 
 export const dynamic = "force-dynamic";
 // Provider-required raw body: never let a parser re-serialize before the
 // signature check. crypto/hash behavior is required from Node.
 export const runtime = "nodejs";
+
+// Register the real provider adapter once per process (server-only import);
+// the webhook route consumes the PaymentGateway seam, not provider details.
+registerMidtransGateway();
+registerWebhookVerifier(midtransWebhookVerifier());
 
 /** SHA-256 hex digest of the exact received payload — stored, never the body. */
 function payloadDigest(rawBody: string): string {
@@ -50,6 +56,28 @@ function safeLogContext() {
   return { provider: "midtrans", route: "/api/payment/webhook" };
 }
 
+/**
+ * Decided database refusals (validation/mismatch/transition rules the RPC
+ * raises by message): nothing mutated, retrying cannot help — the provider
+ * gets 200. Everything else (network, auth, transient outage) is retryable →
+ * 503 so Midtrans redelivers per its documented schedule (ADR-0001).
+ */
+const DECIDED_FAILURES = [
+  "Invalid verified payment facts",
+  "Payment attempt not found",
+  "Purchase not found",
+  "Prompt Pack not found",
+  "Verified payment does not match purchase",
+  "Conflicting payment event",
+  "Invalid payment transition",
+];
+
+/** @param {{ message?: string } | null} error */
+function isDecidedFailure(error: { message?: string } | null): boolean {
+  const message = String(error?.message ?? "");
+  return DECIDED_FAILURES.some((fragment) => message.includes(fragment));
+}
+
 export async function POST(request: Request): Promise<Response> {
   let rawBody: string;
   try {
@@ -64,7 +92,7 @@ export async function POST(request: Request): Promise<Response> {
   // Verify + normalize before trusting or mutating anything.
   let event: NormalizedWebhookEvent | null;
   try {
-    event = midtransVerifyWebhook(rawBody, headers);
+    event = verifyAndNormalizeWebhook(rawBody, headers);
   } catch (error) {
     // Unauthenticated/malformed: 4xx, body is presentation-safe.
     const invalid = String((error as Error)?.message ?? "").includes("Invalid webhook signature");
@@ -102,10 +130,15 @@ export async function POST(request: Request): Promise<Response> {
         p_token_hash: candidateTokenHash(),
       });
       if (error) {
-        // Mismatch/unknown/transition failures: nothing mutated. Provider gets
-        // 200 (it will not retry better data) with safe logging.
-        console.warn(JSON.stringify({ ...safeLogContext(), kind: "completion-failed", stage: "database" }));
-        return new Response(null, { status: 200 });
+        if (isDecidedFailure(error)) {
+          // Mismatch/unknown/transition failures: nothing mutated. Provider gets
+          // 200 (it will not retry better data) with safe logging.
+          console.warn(JSON.stringify({ ...safeLogContext(), kind: "completion-failed", stage: "database" }));
+          return new Response(null, { status: 200 });
+        }
+        // Transient database failure: 503 lets Midtrans redeliver.
+        console.warn(JSON.stringify({ ...safeLogContext(), kind: "completion-failed", stage: "transient" }));
+        return Response.json({ error: "Webhook processing is temporarily unavailable" }, { status: 503 });
       }
     } catch {
       console.warn(JSON.stringify({ ...safeLogContext(), kind: "completion-failed", stage: "network" }));
@@ -114,9 +147,10 @@ export async function POST(request: Request): Promise<Response> {
     return new Response(null, { status: 200 });
   }
 
-  // Verified non-success: durable status via the companion RPC. The order id
-  // is the only payload fact used to resolve the attempt; outcome and digest
-  // are normalized server-side.
+  // Verified non-success/non-final: durable status via the companion RPC. The
+  // order id is the only payload fact used to resolve the attempt; outcome and
+  // digest are normalized server-side. "ignored" keeps the row on record
+  // (refund/pending/capture-pending) while never leaving a final transition.
   const trusted = createTrustedSupabaseClient();
   try {
     const { error } = await trusted.rpc("record_unpaid_payment_event", {
@@ -124,12 +158,17 @@ export async function POST(request: Request): Promise<Response> {
       p_provider_event_id: event.providerEventId,
       p_provider_attempt_id: event.providerAttemptId,
       p_event_type: event.eventType,
-      p_event_outcome: event.outcome === "failed" ? "FAILED" : "EXPIRED",
+      p_event_outcome: event.outcome === "failed" ? "FAILED" : event.outcome === "expired" ? "EXPIRED" : "IGNORED",
       p_provider_payload_digest: payloadDigest(rawBody),
     });
     if (error) {
-      console.warn(JSON.stringify({ ...safeLogContext(), kind: "recording-failed", stage: "database" }));
-      return new Response(null, { status: 200 });
+      if (isDecidedFailure(error)) {
+        console.warn(JSON.stringify({ ...safeLogContext(), kind: "recording-failed", stage: "database" }));
+        return new Response(null, { status: 200 });
+      }
+      // Transient database failure: 503 lets Midtrans redeliver.
+      console.warn(JSON.stringify({ ...safeLogContext(), kind: "recording-failed", stage: "transient" }));
+      return Response.json({ error: "Webhook processing is temporarily unavailable" }, { status: 503 });
     }
   } catch {
     console.warn(JSON.stringify({ ...safeLogContext(), kind: "recording-failed", stage: "network" }));

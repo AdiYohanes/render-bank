@@ -1,7 +1,7 @@
 export type CheckoutDecision =
   | { kind: "ready"; attemptKey: string; claim: string; reference: string; claimExpiresAt: string; packTitle: string; amountMinor: number; currency: string; buyerEmail: string; resumed?: boolean }
   | { kind: "redirect-status"; reference: string }
-  | { kind: "unavailable" | "invalid-email" | "price-changed" | "checkout-failed" };
+  | { kind: "unavailable" | "invalid-email" | "price-changed" | "email-conflict" | "checkout-failed" };
 
 export type CheckoutPackInput = {
   id: string;

@@ -2,9 +2,19 @@ import "server-only";
 
 import { createTrustedSupabaseClient } from "@/lib/supabase/service";
 
-import { midtransConfig, midtransCreateCheckout, midtransOrderId, midtransSignature } from "./midtrans.mjs";
+import { midtransConfig, midtransCreateCheckout, midtransOrderId, midtransSignature, midtransVerifyWebhook } from "./midtrans.mjs";
 
 export { midtransConfig, midtransOrderId, midtransSignature };
+
+/**
+ * The PaymentGateway webhook half of the seam (TECHNICAL_ARCHITECTURE §14).
+ * @param {string | null} rawBody exact body text as received
+ * @param {Record<string, string | undefined>} headers lowercase webhook headers
+ */
+export function midtransWebhookVerifier() {
+  return (rawBody: string, headers: Record<string, string | undefined>) =>
+    midtransVerifyWebhook(rawBody, headers, process.env);
+}
 
 export function midtransBindAttempt() {
   const trusted = createTrustedSupabaseClient();

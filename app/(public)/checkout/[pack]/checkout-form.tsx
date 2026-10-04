@@ -34,6 +34,7 @@ export function CheckoutForm({ packSlug }: { packSlug: string }) {
           confirm the latest price.
         </p>
       )}
+      {state?.reconfirm && <input name="reconfirm" type="hidden" value="1" />}
       {state?.error && (
         <p className="form-error" role="alert">
           {state.error}

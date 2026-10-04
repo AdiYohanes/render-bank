@@ -21,22 +21,22 @@ test("buyer email masks to first local character only", () => {
   }
 });
 
-test("status views are redacted: pack title and masked email only, never ids or claims", () => {
-  const purchase = { status: "PAID", pack_title_snapshot: "Demo Content: Product Pack", buyer_email_normalized: "buyer@example.invalid" };
+test("status views are redacted: pack title/slug and masked email only, never ids or claims", () => {
+  const purchase = { status: "PAID", pack_title_snapshot: "Demo Content: Product Pack", buyer_email_normalized: "buyer@example.invalid", pack_slug: "demo-product-pack" };
   assert.deepEqual(resolveStatusView(purchase), {
-    kind: "success", packTitle: "Demo Content: Product Pack", maskedEmail: "b***@example.invalid",
+    kind: "success", packTitle: "Demo Content: Product Pack", packSlug: "demo-product-pack", maskedEmail: "b***@example.invalid",
   });
-  assert.deepEqual(resolveStatusView({ status: "PROCESSING", pack_title_snapshot: "T", buyer_email_normalized: "a@b.co" }),
-    { kind: "pending", packTitle: "T", maskedEmail: "a***@b.co" });
+  assert.deepEqual(resolveStatusView({ status: "PROCESSING", pack_title_snapshot: "T", buyer_email_normalized: "a@b.co", pack_slug: null }),
+    { kind: "pending", packTitle: "T", packSlug: null, maskedEmail: "a***@b.co" });
   assert.deepEqual(resolveStatusView({ status: "FAILED", pack_title_snapshot: "", buyer_email_normalized: "a@b.co" }),
-    { kind: "failed", packTitle: null, maskedEmail: "a***@b.co" });
+    { kind: "failed", packTitle: null, packSlug: null, maskedEmail: "a***@b.co" });
   assert.deepEqual(resolveStatusView({ status: "CANCELLED", pack_title_snapshot: "T", buyer_email_normalized: null }),
-    { kind: "cancelled", packTitle: "T", maskedEmail: null });
+    { kind: "cancelled", packTitle: "T", packSlug: null, maskedEmail: null });
 });
 
 test("unknown and lost references stay unknown, never coerced", () => {
-  assert.deepEqual(resolveStatusView(null), { kind: "unknown", packTitle: null, maskedEmail: null });
-  assert.deepEqual(resolveStatusView(undefined), { kind: "unknown", packTitle: null, maskedEmail: null });
+  assert.deepEqual(resolveStatusView(null), { kind: "unknown", packTitle: null, packSlug: null, maskedEmail: null });
+  assert.deepEqual(resolveStatusView(undefined), { kind: "unknown", packTitle: null, packSlug: null, maskedEmail: null });
   assert.deepEqual(resolveStatusView({ status: "WEIRD", pack_title_snapshot: "T", buyer_email_normalized: "a@b.co" }),
-    { kind: "unknown", packTitle: null, maskedEmail: null });
+    { kind: "unknown", packTitle: null, packSlug: null, maskedEmail: null });
 });

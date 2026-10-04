@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import { cookies, headers } from "next/headers";
 
 import { CHECKOUT_COOKIE, checkoutCookieOptions, parseCheckoutCookie } from "@/lib/checkout/claim-cookie";
-import { createCheckout, registerGateway } from "@/lib/payment/gateway";
+import { createCheckout, registerGateway, SettledOrderError } from "@/lib/payment/gateway";
 import { registerMidtransGateway } from "@/lib/payment/midtrans";
 import { initializeCheckout } from "@/lib/checkout/initialize-checkout";
 import type { CheckoutAttemptRow } from "@/lib/checkout/initialize-types";
@@ -76,10 +76,7 @@ export async function submitCheckout(
   if (decision.kind === "ready") {
     // Persist fresh claim material with the response; resume keeps the pair.
     if (decision.claim && (!claimCookie || claimCookie.claim !== decision.claim)) {
-      store.set(CHECKOUT_COOKIE, `${decision.attemptKey}.${decision.claim}`, {
-        ...checkoutCookieOptions(protocolSecure),
-        sameSite: "lax",
-      });
+      store.set(CHECKOUT_COOKIE, `${decision.attemptKey}.${decision.claim}`, checkoutCookieOptions(protocolSecure));
     }
     try {
       const session = await createCheckout({
@@ -90,7 +87,12 @@ export async function submitCheckout(
         attemptKey: decision.attemptKey,
       });
       return { redirectUrl: session.redirectUrl };
-    } catch {
+    } catch (error) {
+      if (error instanceof SettledOrderError) {
+        // ADR-0001 409 recovery: the order already settled at the provider —
+        // no create, redirect to the purchase's own status route.
+        return { redirectUrl: `/payment/success?ref=${encodeURIComponent(decision.reference)}` };
+      }
       // Provider down/misconfigured: the attempt stays CREATED; a later submit
       // with the same stable pair resumes it instead of duplicating.
       return { error: "Payment could not be started right now. Your checkout is saved — try again in a moment." };
@@ -102,5 +104,6 @@ export async function submitCheckout(
 
   if (decision.kind === "invalid-email") return { error: "Enter the email the access link should go to." };
   if (decision.kind === "price-changed") return { error: "The price has changed since you started checkout. Submit again to confirm the latest price.", reconfirm: true };
+  if (decision.kind === "email-conflict") return { error: "This checkout is already in progress with a different email. Open the Pack again to start a new checkout." };
   return { error: "Checkout could not be completed. Please try again." };
 }

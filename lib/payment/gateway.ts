@@ -1,6 +1,21 @@
 import "server-only";
 
-import { __setCreateCheckoutForTests, createCheckout, registerGateway } from "./gateway.mjs";
+import {
+  __setCreateCheckoutForTests,
+  __setVerifyAndNormalizeWebhookForTests,
+  createCheckout,
+  registerGateway,
+  registerWebhookVerifier,
+  SettledOrderError,
+  verifyAndNormalizeWebhook,
+} from "./gateway.mjs";
 
 export { createCheckout };
-export { __setCreateCheckoutForTests, registerGateway };
+export {
+  __setCreateCheckoutForTests,
+  __setVerifyAndNormalizeWebhookForTests,
+  registerGateway,
+  registerWebhookVerifier,
+  SettledOrderError,
+  verifyAndNormalizeWebhook,
+};

@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 
+import { ArtworkFrame } from "@/app/components/artwork";
 import { resolveCheckoutPack } from "@/lib/checkout/pack-resolve.mjs";
 import { formatPackPrice } from "@/lib/payment/present";
 import { CheckoutForm } from "./checkout-form";
@@ -49,6 +50,7 @@ export default async function CheckoutPage({ params }: Props) {
       <p className="eyebrow">CHECKOUT</p>
       <h1>Checkout</h1>
       <section className="checkout-summary" aria-label="Order summary">
+        {resolved.cover ? <div className="checkout-cover prompt-artwork"><ArtworkFrame alt={`${resolved.title} cover`} asset={resolved.cover} /></div> : null}
         <h2>{resolved.title}</h2>
         <p>{resolved.description}</p>
         <dl className="pack-meta">

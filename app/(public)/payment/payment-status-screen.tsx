@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Suspense } from "react";
 import { redirect } from "next/navigation";
 
 import { lookupPaymentStatus } from "@/lib/payment/status-lookup";
@@ -14,13 +15,16 @@ const KIND_TO_ROUTE: Record<StatusView["kind"], RouteName | null> = {
 
 const UNKNOWN_COPY = "We couldn't verify your payment status.";
 
+/** SCREEN_REQUIREMENTS §41: accessible status text before the result resolves. */
+function CheckingStatus() {
+  return <p className="payment-lede" role="status">Checking your payment...</p>;
+}
+
 /**
- * Shared status screen body (#31; SCREEN_REQUIREMENTS §14–17, ADR-0001
- * wrong-route rules). Server purchase state always wins: a known status on a
- * differing route redirects to its canonical route carrying the same ref;
- * unknown stays unknown in whatever route was requested, never coerced.
+ * Resolves the server purchase state and renders the matched screen (async
+ * inner component so Suspense can stream the checking copy first).
  */
-export default async function PaymentStatusScreen({ route, reference }: { route: RouteName; reference: string | undefined }) {
+async function StatusBody({ route, reference }: { route: RouteName; reference: string | undefined }) {
   const view = await lookupPaymentStatus(reference ?? null);
 
   const canonical = KIND_TO_ROUTE[view.kind];
@@ -34,6 +38,9 @@ export default async function PaymentStatusScreen({ route, reference }: { route:
         <h1>Payment status</h1>
         <p className="payment-lede" role="status">{UNKNOWN_COPY}</p>
         <div className="payment-actions">
+          {/* Recheck (SCREEN §44): a fresh request — the webhook may have landed
+              since this link was opened. Same route, server state decides. */}
+          <Link className="payment-primary" href={`/payment/${route}?ref=${encodeURIComponent(reference ?? "")}`} prefetch={false}>Check Again</Link>
           <Link className="payment-secondary" href="/packs">Browse Packs</Link>
           <Link className="payment-secondary" href="/explore">Explore Prompts</Link>
         </div>
@@ -66,6 +73,7 @@ export default async function PaymentStatusScreen({ route, reference }: { route:
         <div className="payment-actions">
           {/* Recheck: same route, fresh request — status comes from the server. */}
           <Link className="payment-primary" href={`/payment/pending?ref=${encodeURIComponent(reference ?? "")}`} prefetch={false}>Check Again</Link>
+          {view.packSlug ? <Link className="payment-secondary" href={`/packs/${view.packSlug}`}>Return to Pack</Link> : null}
           <Link className="payment-secondary" href="/packs">Browse Packs</Link>
         </div>
         <p className="payment-help">Premium access is not granted while a payment is pending.</p>
@@ -83,6 +91,7 @@ export default async function PaymentStatusScreen({ route, reference }: { route:
       {view.packTitle ? <p className="payment-pack">Pack: <strong>{view.packTitle}</strong></p> : null}
       <div className="payment-actions">
         <Link className="payment-primary" href="/packs">Try Again</Link>
+        {view.packSlug ? <Link className="payment-secondary" href={`/packs/${view.packSlug}`}>Return to Pack</Link> : null}
         <Link className="payment-secondary" href="/packs">Browse Packs</Link>
         <Link className="payment-secondary" href="/explore">Explore Prompts</Link>
       </div>
@@ -90,5 +99,17 @@ export default async function PaymentStatusScreen({ route, reference }: { route:
         {failed ? "If a payment method kept failing, another one may work." : "If this was accidental, you can start the payment again at any time."}
       </p>
     </section>
+  );
+}
+
+/**
+ * Shared status screen shell (#31): streams the §41 checking copy while the
+ * verified server result resolves beneath it.
+ */
+export default function PaymentStatusScreen({ route, reference }: { route: RouteName; reference: string | undefined }) {
+  return (
+    <Suspense fallback={<CheckingStatus />}>
+      <StatusBody route={route} reference={reference} />
+    </Suspense>
   );
 }
