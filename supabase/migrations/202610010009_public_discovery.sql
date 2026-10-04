@@ -32,7 +32,7 @@ language sql stable security invoker set search_path = '' as $$
     and (orientation_filter is null or p.orientation = orientation_filter)
     and (access_filter is null or p.access_type = access_filter)
   order by p.published_at desc, p.id desc
-  limit greatest(1, least(coalesce(page_size, 12), 24))
+  limit greatest(1, least(coalesce(page_size, 12), 1000))
   offset greatest(0, least(coalesce(page_offset, 0), 2400));
 $$;
 revoke all on function public.search_public_prompts(text, text, text, public.orientation, public.prompt_access_type, integer, integer) from public;

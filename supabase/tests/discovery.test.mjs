@@ -27,4 +27,5 @@ test("Visitor searches published safe Prompt metadata without seeing protected r
 test("Visitor combines filters and pages with stable order", async () => {
   assert.deepEqual((await search({ category_slug: "product-photography", model_slug: "demo-image-model", orientation_filter: "SQUARE", access_filter: "FREE" })).map((row) => row.slug), ["demo-studio-product"]);
   assert.deepEqual((await search({ search_query: "Demo", page_size: 1, page_offset: 1 })).map((row) => row.slug), ["demo-premium-studio"]);
+  assert.equal((await search({ search_query: "Demo", page_size: 25 })).length, 3);
 });

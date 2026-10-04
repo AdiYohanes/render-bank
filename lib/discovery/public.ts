@@ -5,6 +5,7 @@ import { unstable_cache } from "next/cache";
 
 import type { Database } from "@/lib/supabase/database.types";
 import { publicSupabaseEnv } from "@/lib/supabase/public-env";
+import { discoveryWindow } from "./url";
 
 export type DiscoveryFilters = {
   q: string;
@@ -14,8 +15,6 @@ export type DiscoveryFilters = {
   access: string;
   page: number;
 };
-
-const pageSize = 12;
 
 function visitor() {
   const { url, key } = publicSupabaseEnv();
@@ -29,22 +28,23 @@ function checked<T>(result: { data: T | null; error: { message: string } | null 
 
 async function queryPrompts(filters: DiscoveryFilters) {
   const client = visitor();
+  const { size, offset } = discoveryWindow(filters.page);
   const rows = checked(await client.rpc("search_public_prompts", {
     search_query: filters.q || undefined,
     category_slug: filters.category || undefined,
     model_slug: filters.model || undefined,
     orientation_filter: filters.orientation ? filters.orientation.toUpperCase() as Database["public"]["Enums"]["orientation"] : undefined,
     access_filter: filters.access ? (filters.access === "premium" ? "PACK_ONLY" : "FREE") : undefined,
-    page_size: pageSize + 1,
-    page_offset: (filters.page - 1) * pageSize,
+    page_size: size,
+    page_offset: offset,
   }));
-  const visible = rows.slice(0, pageSize);
+  const visible = rows.slice(0, size - 1);
   if (!visible.length) return { prompts: [], hasMore: false };
   const details = checked(await client.from("prompts").select("id,category:categories(slug,name),models:prompt_models(models(name)),images:prompt_images(is_primary,alt_text,media_assets(storage_path,width,height,bucket))").in("id", visible.map(({ id }) => id)));
   const byId = new Map(details.map((detail) => [detail.id, detail]));
   return {
     prompts: visible.map((row) => ({ ...row, ...byId.get(row.id) })),
-    hasMore: rows.length > pageSize,
+    hasMore: rows.length >= size && filters.page < 83,
   };
 }
 
