@@ -70,9 +70,14 @@ try {
   assertNoPublicSecrets(join(".next", "static"), secrets);
   assertNoPublicSecrets(join(".next", "server", "app"), secrets);
 
+  // The build proves it needs no trusted credentials; the runtime smoke still
+  // serves server-verified purchase state (/payment/*) through the
+  // service-role client (ADR-0001), so it starts with the *local* Supabase
+  // secret key — no production credential ever participates, and the local
+  // keys are already in the secret-scan list above.
   stage = "Production root smoke";
   console.log(`\n[foundation] ${stage}`);
-  npmRun(["run", "smoke"], { env });
+  npmRun(["run", "smoke"], { env: { ...env, SUPABASE_SECRET_KEY: status.SECRET_KEY } });
   stage = "Working-tree status stability";
   console.log(`\n[foundation] ${stage}`);
   assert.equal(execFileSync("git", ["status", "--porcelain"], { encoding: "utf8" }), initialTree, "Gate changed the working-tree file list");
