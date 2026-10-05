@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 
 import { ArtworkFrame } from "@/app/components/artwork";
-import { resolveCheckoutPack } from "@/lib/checkout/pack-resolve.mjs";
+import { resolveCheckoutPack } from "@/lib/checkout/pack-resolve";
 import { formatPackPrice } from "@/lib/payment/present";
 import { CheckoutForm } from "./checkout-form";
 

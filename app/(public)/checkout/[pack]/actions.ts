@@ -9,7 +9,7 @@ import { registerMidtransGateway } from "@/lib/payment/midtrans";
 import { initializeCheckout } from "@/lib/checkout/initialize-checkout";
 import type { CheckoutAttemptRow } from "@/lib/checkout/initialize-types";
 import { createProcessingPurchase } from "@/lib/checkout/create-processing-purchase";
-import { resolveCheckoutPack } from "@/lib/checkout/pack-resolve.mjs";
+import { resolveCheckoutPack } from "@/lib/checkout/pack-resolve";
 import { createTrustedSupabaseClient } from "@/lib/supabase/service";
 
 // Register the real provider adapter once per process (server-only import).
