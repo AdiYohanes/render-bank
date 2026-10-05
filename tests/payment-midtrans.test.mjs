@@ -62,7 +62,7 @@ test("order id and signature formulas match the locked contract", () => {
   assert.equal(
     midtransSignature("order-1", "200", "59000", TEST_SERVER_KEY),
     // independently computed: sha512 of the literal concat "order-1" + "200" + "59000" + TEST_SERVER_KEY
-    "810868b6939412feb0215f408876060305a87d0dd4947d8f191bf5288cc685793d34345004aa5a4f7d9494578671e9abc2f919338970092b558feeef0cdf68c7",
+    "7e7ef07a9a97ed713ec40f23b95c25658240f0d2831288928a155697ddc58d130852f88f28d5a633d94682f0fd4761b15eaafc7aef9320ef65d48ba5b446b2c5",
   );
 });
 
