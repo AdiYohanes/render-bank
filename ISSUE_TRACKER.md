@@ -38,4 +38,22 @@ Checklist #21 (lihat issue untuk versi otoritatif):
 - [x] Docs sync: DATABASE_SCHEMA contract, README wording, tracker ini
 - [x] Evidence verifikasi: full gate lulus di merged main; focused HTTP verification lulus; PR #22 merged
 
-Tetap di Phase 3–6 (tidak masuk scope #21): Prompt Detail/Admin, storefront/checkout pack, buyer access, provisioning konten launch, analytics, monitoring, performance budget, audit aksesibilitas penuh.
+Tetap di Phase 3–6 (tidak masuk scope #21): Prompt Detail/Admin, buyer access, provisioning konten launch, analytics, monitoring, performance budget, audit aksesibilitas penuh.
+
+## Phase 4 — Commerce
+
+Snapshot per 5 Oktober 2026. [Parent #25](https://github.com/AdiYohanes/render-bank/issues/25) owns Phase 4; children #26–#31 diturunkan sebagai native sub-issues. Implementasi berjalan sebagai commit langsung di branch `AdiYohanes/phase4` (fixed point review `4f39081`, 12 commits sejak titik tersebut); PR ke `main` menyusul setelah acceptance #32 reseled. Keputusan binding: provider = Midtrans hosted Snap (`app.sandbox.midtrans.com` untuk dev, tidak ada kredensial produksi di repo/build), recheck status = database saja.
+
+| Sub-issue | Deliverable | Implementasi (branch `AdiYohanes/phase4`) | State |
+|---|---|---|---|
+| [#26 Provider + lifecycle contract](https://github.com/AdiYohanes/render-bank/issues/26) | [ADR-0001](docs/adr/0001-phase4-midtrans-provider.md) — binding Midtrans Snap, lifecycle, idempotency, seam uji | `4f39081` | Closed |
+| [#27 Pack storefront](https://github.com/AdiYohanes/render-bank/issues/27) | Listing + sales detail, archived recovery, locked-content guard | `3023003`, `4c0af5f` | Closed |
+| [#28 Accountless checkout](https://github.com/AdiYohanes/render-bank/issues/28) | Checkout attempt, retry-stable key/claim, cookies aman | `3777571` | Closed |
+| [#29 Payment adapter](https://github.com/AdiYohanes/render-bank/issues/29) | Midtrans adapter + `bind_provider_attempt` RPC | `c73cfaa` | Closed |
+| [#30 Webhook completion](https://github.com/AdiYohanes/render-bank/issues/30) | Verified webhook → atomic paid completion boundary | `57b3bea` | Closed |
+| [#31 Status routes](https://github.com/AdiYohanes/render-bank/issues/31) | Authoritative `/payment/*` + wrong-route recovery | `00c18ff` | Closed |
+| [#32 Acceptance gate](https://github.com/AdiYohanes/render-bank/issues/32) | Full gate + docs sync + evidence | — | Open (bukti di [comment acceptance](https://github.com/AdiYohanes/render-bank/issues/32#issuecomment-5986135347)) |
+
+Commit penting di luar children: `b2691f1` remediasi `/code-review` (409-settled recovery, webhook seam, email-conflict surfacing), `988b0b5` doc-sync dokumen pemilik, `5d71463` regen database types (formatting-only), `b68a660` checkout resolver ke publishable client, `7b3cc35` gate smoke dengan local Supabase secret key (tanpa kredensial produksi).
+
+Acceptance per 5 Oktober 2026 di `7b3cc35`: full gate **All checks passed** (locked install, typecheck, lint 0 error, Docker + Supabase lokal, db:reset 11 migration + seed, db:test 48/48, db:types:check zero-drift, npm test 72/72, production build tanpa trusted keys, secret scan public output bersih, root smoke, tree tetap stabil). Build hanya 1 kelemahan dicatat: smoke `/payment/*` membutuhkan service-role client (kontrak ADR-0001), sehingga smoke start dengan secret key **Supabase lokal** — kredensial produksi tidak pernah ikut.

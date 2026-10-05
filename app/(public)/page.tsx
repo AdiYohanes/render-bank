@@ -14,6 +14,7 @@ import {
   discoverPrompts,
   type DiscoveryPrompt,
 } from "@/lib/discovery/public";
+import { formatPackPrice } from "@/lib/payment/present";
 
 export const metadata: Metadata = {
   alternates: { canonical: "/" },
@@ -61,13 +62,7 @@ export default async function Home() {
     .filter((prompt) => !featuredIds.has(prompt.id))
     .slice(0, 4);
   const pack = packs[0];
-  const price = pack
-    ? new Intl.NumberFormat("id-ID", {
-        style: "currency",
-        currency: pack.currency,
-        maximumFractionDigits: 0,
-      }).format(pack.price_minor / 100)
-    : null;
+  const price = pack ? formatPackPrice(pack.price_minor, pack.currency) : null;
   const base = siteUrl().replace(/\/$/, "");
   const websiteLd = {
     "@context": "https://schema.org",

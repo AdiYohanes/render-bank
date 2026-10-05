@@ -43,6 +43,12 @@ product intent → route/flow → screen behavior → visual specification → a
 | [`engineering/DATABASE_SCHEMA.md`](engineering/DATABASE_SCHEMA.md) | Persistence model, constraints, RLS, transactions, indexes, and data lifecycle | Proposed MVP Baseline — Slice 0 review pending |
 | [`engineering/FOUNDATION_IMPLEMENTATION_PLAN.md`](engineering/FOUNDATION_IMPLEMENTATION_PLAN.md) | Issue #1 foundation slices, dependencies, acceptance, and verification | Implementation plan |
 
+### Architecture decision records
+
+| Record | Decides | Status |
+|---|---|---|
+| [`adr/0001-phase4-midtrans-provider.md`](adr/0001-phase4-midtrans-provider.md) | Phase 4 payment provider (Midtrans) and commerce lifecycle contract | Accepted |
+
 ## Task routing
 
 | Task | Read first | Add only when needed |

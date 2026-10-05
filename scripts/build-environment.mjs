@@ -1,6 +1,7 @@
 const trustedKeys = new Set([
   "SUPABASE_SECRET_KEY", "SUPABASE_SERVICE_ROLE_KEY", "SERVICE_ROLE_KEY",
   "PAYMENT_SECRET", "PAYMENT_WEBHOOK_SECRET", "EMAIL_PROVIDER_SECRET", "ACCESS_SESSION_SECRET",
+  "MIDTRANS_SERVER_KEY",
 ]);
 
 export function buildEnvironment(source, status) {

@@ -144,6 +144,7 @@ async function queryPacks() {
       .select(
         "slug,title,description,price_minor,currency,cover:media_assets(storage_path,width,height,bucket),prompt_count:pack_prompts(count)",
       )
+      .eq("status", "PUBLISHED")
       .order("published_at", { ascending: false })
       .limit(3),
   ) as Array<{
@@ -162,6 +163,42 @@ async function queryPacks() {
   }>;
 }
 export const discoverPacks = unstable_cache(queryPacks, ["public-packs-v1"], {
+  revalidate: 60,
+  tags: ["discovery"],
+});
+
+// Safe sales detail for a published pack: cover, use cases, supported models,
+// and included-prompts previews. RLS limits membership to published PACK_ONLY
+// prompts inside a published pack, so no locked recipe field is ever selected.
+async function queryPackDetail(slug: string) {
+  const { data: pack, error } = await visitor()
+    .from("packs")
+    .select(
+      "slug,title,description,price_minor,currency,cover:media_assets(storage_path,width,height,bucket),prompts:pack_prompts(sort_order,prompt:prompts(id,slug,title,short_description,aspect_ratio,images:prompt_images(is_primary,alt_text,media_assets(storage_path,width,height,bucket)),category:categories(name),models:prompt_models(models(name))))",
+    )
+    .eq("slug", slug)
+    .eq("status", "PUBLISHED")
+    .single();
+  if (error || !pack) {
+    if (error?.code === "PGRST116") return null;
+    throw new Error("Public discovery is temporarily unavailable");
+  }
+
+  const prompts = [...pack.prompts]
+    .sort((a, b) => a.sort_order - b.sort_order)
+    .map(({ prompt }) => prompt);
+
+  return {
+    slug: pack.slug,
+    title: pack.title,
+    description: pack.description,
+    priceMinor: pack.price_minor,
+    currency: pack.currency,
+    cover: pack.cover,
+    prompts,
+  } as const;
+}
+export const findPackDetail = unstable_cache(queryPackDetail, ["public-pack-detail-v1"], {
   revalidate: 60,
   tags: ["discovery"],
 });

@@ -583,6 +583,8 @@ Function security:
 
 Email is outside the transaction. Email failure does not revert `PAID` or entitlement.
 
+Non-success lifecycle facts (verified Failed/Cancelled/Expired events, replay, wrong-route precedence, provider-attempt binding, and the Phase 4/5 ownership split for raw tokens/email/Open-My-Pack) are the accepted lifecycle contract of [ADR-0001](../adr/0001-phase4-midtrans-provider.md); the attempts side uses the service-role-only `record_unpaid_payment_event` RPC and never the paid-completion RPC.
+
 ## 10.4 Payment Status Page
 
 `/payment/*` reads server state using an opaque public reference. The route name never overrides that state.
@@ -814,7 +816,7 @@ TransactionalMailer
 
 Domain services consume normalized provider results, not provider-specific payloads. Do not build adapters for Supabase database, Auth, or Storage during MVP.
 
-Analytics and error monitoring are operational integrations, not domain abstractions. They must be non-blocking and redact sensitive values.
+The payment provider is **Midtrans** (hosted Snap page), selected and locked by [`docs/adr/0001-phase4-midtrans-provider.md`](../adr/0001-phase4-midtrans-provider.md). `getAuthoritativeStatus()` is declared but not implemented: verified webhooks are the only normal path that mutates payment truth and `/payment/*` rechecks read server purchase state. Analytics and error monitoring are operational integrations, not domain abstractions. They must be non-blocking and redact sensitive values.
 
 ---
 
@@ -872,11 +874,15 @@ Typical environment variables:
 NEXT_PUBLIC_SUPABASE_URL
 NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
 SUPABASE_SECRET_KEY
+MIDTRANS_SERVER_KEY
+MIDTRANS_IS_PRODUCTION
 PAYMENT_SECRET
 PAYMENT_WEBHOOK_SECRET
 EMAIL_PROVIDER_SECRET
 ACCESS_SESSION_SECRET (if application signing requires it)
 ```
+
+`MIDTRANS_SERVER_KEY`/`MIDTRANS_IS_PRODUCTION` are Phase 4 (see ADR-0001); `PAYMENT_SECRET`, `PAYMENT_WEBHOOK_SECRET`, `EMAIL_PROVIDER_SECRET`, and `ACCESS_SESSION_SECRET` are placeholder names for later phases.
 
 Only explicitly public values use `NEXT_PUBLIC_*`. Store server secrets in Vercel environment secrets; rotate after suspected exposure.
 

@@ -61,13 +61,44 @@ async function smoke() {
     if (!response) throw new Error(`Production server did not start. Run npm run build first.\n${startupError ?? output}`);
     assertRoot(response.status, await response.text());
 
-    for (const route of ["/explore", "/about", "/packs", "/terms", "/privacy"]) {
+    for (const route of ["/explore", "/about", "/packs", "/packs/demo-product-pack", "/terms", "/privacy"]) {
       const result = await fetch(`${base}${route}`, { signal: AbortSignal.timeout(5000) });
       assert.equal(result.status, 200, `${route} should load`);
       const html = await result.text();
       assert.doesNotMatch(html, starterCopy);
       assert.doesNotMatch(html, /SECRET_PREMIUM|PRIVATE DRAFT RECIPE/, `${route} must never leak protected recipe markers`);
     }
+    const packStore = await fetch(`${base}/packs/demo-product-pack`, { signal: AbortSignal.timeout(5000) });
+    assert.equal(packStore.status, 200, "pack store should load");
+    const packStoreHtml = await packStore.text();
+    assert.match(packStoreHtml, /Demo Content: Product Pack/);
+    assert.match(packStoreHtml, /Rp.{0,2}59\.000/, "pack price must render IDR zero-decimal formatting");
+    assert.match(packStoreHtml, /\/checkout\/demo-product-pack/, "pack store must link its checkout route");
+
+    const checkout = await fetch(`${base}/checkout/demo-product-pack`, { signal: AbortSignal.timeout(5000) });
+    assert.equal(checkout.status, 200, "checkout for a published pack should load");
+    const checkoutHtml = await checkout.text();
+    assert.match(checkoutHtml, /noindex/i, "checkout must be noindex");
+    assert.match(checkoutHtml, /Demo Content: Product Pack/, "checkout must show the pack summary");
+    assert.match(checkoutHtml, /Rp.{0,2}59\.000/, "checkout must show the authoritative price");
+    assert.match(checkoutHtml, /Continue to Payment/, "checkout must show the payment CTA");
+    assert.doesNotMatch(checkoutHtml, /SECRET_PREMIUM|PRIVATE DRAFT RECIPE/, "checkout must never leak protected recipe markers");
+
+    const checkoutArchived = await fetch(`${base}/checkout/demo-archived-pack`, { signal: AbortSignal.timeout(5000) });
+    assert.equal(checkoutArchived.status, 200, "checkout for an unavailable pack must render, not error");
+    assert.match(await checkoutArchived.text(), /not purchasable/i, "unavailable checkout must refuse to sell");
+
+    // /payment/*: unknown references render Unknown copy in the requested
+    // route, never coerced to paid/failed; noindex; safe to load directly.
+    for (const route of ["success", "pending", "failed", "cancelled"]) {
+      const unknown = await fetch(`${base}/payment/${route}?ref=${"z".repeat(43)}`, { signal: AbortSignal.timeout(5000) });
+      assert.equal(unknown.status, 200, `/payment/${route} unknown ref must render, not error`);
+      const html = await unknown.text();
+      assert.match(html, /couldn&#x27;t verify your payment status|couldn't verify your payment status/, "unknown ref shows the Unknown copy");
+      assert.match(html, /noindex/i, `payment/${route} must be noindex`);
+      assert.doesNotMatch(html, /74[0-9a-f]{10}|open my pack/i, "unknown view must not promise access or CTA state");
+    }
+
     for (const route of ["/blog", "/docs", "/pricing"]) {
       const result = await fetch(`${base}${route}`, { signal: AbortSignal.timeout(5000) });
       assert.equal(result.status, 404, `${route} should not serve starter content`);
@@ -78,7 +109,10 @@ async function smoke() {
     const robotsText = await robots.text();
     assert.match(robotsText, /Sitemap: .+\/sitemap\.xml/);
     assert.doesNotMatch(robotsText, /Disallow: \/prompts\//, "public prompt detail must be indexable");
+    assert.doesNotMatch(robotsText, /Disallow: \/packs\//, "pack storefront must be indexable");
     assert.match(robotsText, /Disallow: \/admin\//);
+    assert.match(robotsText, /Disallow: \/checkout\//, "checkout must stay out of search");
+    assert.match(robotsText, /Disallow: \/payment\//, "payment status must stay out of search");
 
     const free = await fetch(`${base}/prompts/demo-studio-product`, { signal: AbortSignal.timeout(5000) });
     assert.equal(free.status, 200);
@@ -106,7 +140,9 @@ async function smoke() {
     assert.match(sitemapText, /<loc>.*\/about<\/loc>/);
     assert.match(sitemapText, /<loc>.*\/prompts\/demo-studio-product<\/loc>/);
     assert.match(sitemapText, /<loc>.*\/prompts\/demo-premium-studio<\/loc>/);
-    assert.doesNotMatch(sitemapText, /<(loc>.*\/(packs|terms|privacy|category\/draft|prompts\/demo-draft))/, "sitemap must not list later-phase or non-public routes");
+    assert.match(sitemapText, /<loc>.*\/packs<\/loc>/);
+    assert.match(sitemapText, /<loc>.*\/packs\/demo-product-pack<\/loc>/);
+    assert.doesNotMatch(sitemapText, /<(loc>.*\/(terms|privacy|checkout|payment|category\/draft|prompts\/demo-draft))/, "sitemap must not list gated or non-public routes");
 
     console.log("Production public routes smoke passed.");
   } finally {

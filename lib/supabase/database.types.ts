@@ -1024,6 +1024,10 @@ export type Database = {
       [_ in never]: never;
     };
     Functions: {
+      bind_provider_attempt: {
+        Args: { p_attempt_key: string; p_order_id: string; p_provider: string };
+        Returns: undefined;
+      };
       complete_paid_purchase: {
         Args: {
           p_amount_minor: number;
@@ -1059,6 +1063,17 @@ export type Database = {
           purchase_id: string;
           saved_claim_expires_at: string;
         }[];
+      };
+      record_unpaid_payment_event: {
+        Args: {
+          p_event_outcome: string;
+          p_event_type: string;
+          p_provider: string;
+          p_provider_attempt_id: string;
+          p_provider_event_id: string;
+          p_provider_payload_digest: string;
+        };
+        Returns: undefined;
       };
       save_admin_pack: {
         Args: { p_data: Json; p_pack_id: string };
